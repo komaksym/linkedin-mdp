@@ -1,0 +1,63 @@
+name: Live LinkedIn E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/e2e.yml'
+      - 'pyproject.toml'
+      - 'src/**'
+      - 'tests/e2e_live.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      MCP_HOST: 127.0.0.1
+      MCP_PORT: '8000'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Require LinkedIn secret
+        shell: bash
+        run: |
+          if [ -z "$LINKEDIN_ACCESS_TOKEN" ]; then
+            echo "Missing repository secret LINKEDIN_ACCESS_TOKEN" >&2
+            exit 2
+          fi
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Start MCP server
+        shell: bash
+        run: |
+          uv run linkedin-mdp-mcp >server.log 2>&1 &
+          echo $! > server.pid
+          for i in {1..30}; do
+            if curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/mcp | grep -Eq '200|400|405'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+
+      - name: Run live MCP to LinkedIn E2E
+        run: uv run python tests/e2e_live.py
+
+      - name: Server log on failure
+        if: failure()
+        run: cat server.log || true

@@ -62,7 +62,23 @@ async def main() -> None:
 
     messages = [row for row in rows if isinstance(row, dict)]
     messages.sort(key=_date_key, reverse=True)
-    latest = messages[:10]
+
+    unique = []
+    seen = set()
+    for row in messages:
+        key = (
+            row.get("CONVERSATION ID"),
+            row.get("DATE"),
+            row.get("FROM"),
+            row.get("TO"),
+            row.get("CONTENT"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(row)
+
+    latest = unique[:10]
 
     plaintext = json.dumps(
         {

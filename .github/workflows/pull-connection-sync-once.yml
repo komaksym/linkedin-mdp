@@ -35,15 +35,15 @@ jobs:
         shell: bash
         run: |
           cat > "$SYNC_PUBLIC_KEY_PATH" <<'EOF'
------BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjbGPw6DCggIR5/4/F/Pm
-PxtDaEhOYa1bT9BwPtetedzakVX6Q+WcklG2+HTLC0Olws430/nXJqzEHnpyWVmN
-EpH+Q6w7kFx35fta796rviVVhNdiQ8G3g18gypjJABWy6XY2nBSXbilLC9IOePu6
-3YPetzqR9azZaQAMIq6g6P6FlxYvAhrlE3Cw3SvHJF9TQ4rLUcMEdymQzejW5VBB
-c0uuY4ie2p71gy7QludMprWwUao4HfeXkotjXxz4M0CK0HAJp2aILx5ObHrBy3Oe
-KMEFew0/F8TSogd3CnbyoxU3Myh3uXhTDJDjtjlPHRNwr2U9IfYqy2k90cHHT8cD
-NwIDAQAB
------END PUBLIC KEY-----
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjbGPw6DCggIR5/4/F/Pm
+          PxtDaEhOYa1bT9BwPtetedzakVX6Q+WcklG2+HTLC0Olws430/nXJqzEHnpyWVmN
+          EpH+Q6w7kFx35fta796rviVVhNdiQ8G3g18gypjJABWy6XY2nBSXbilLC9IOePu6
+          3YPetzqR9azZaQAMIq6g6P6FlxYvAhrlE3Cw3SvHJF9TQ4rLUcMEdymQzejW5VBB
+          c0uuY4ie2p71gy7QludMprWwUao4HfeXkotjXxz4M0CK0HAJp2aILx5ObHrBy3Oe
+          KMEFew0/F8TSogd3CnbyoxU3Myh3uXhTDJDjtjlPHRNwr2U9IfYqy2k90cHHT8cD
+          NwIDAQAB
+          -----END PUBLIC KEY-----
           EOF
 
       - name: Start MCP server

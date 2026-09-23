@@ -45,9 +45,9 @@ jobs:
 
           code="$(curl -sS -o linkedin_direct.json -w '%{http_code}'             'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=CONNECTIONS&start=0&count=1'             -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN"             -H "Linkedin-Version: $LINKEDIN_API_VERSION"             -H 'Content-Type: application/json')"
           echo "direct_linkedin_http_status=$code"
-          cat linkedin_direct.json
-          echo
           if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            cat linkedin_direct.json
+            echo
             exit 3
           fi
 

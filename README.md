@@ -32,6 +32,34 @@ api.linkedin.com
   /rest/memberChangeLogs
 ```
 
+## Central outreach state
+
+Supabase/Postgres now contains the first central-state vertical slice while the LinkedIn MCP surface remains exactly five read-only tools.
+
+```text
+prospects
+   |
+   +--> events  (normalized evidence from LinkedIn / Clay / LGM)
+   |
+   +--> outreach_state(linkedin_url)  (derived current state)
+```
+
+The schema lives in `supabase/migrations/`.
+
+`public.outreach_state(text)` derives fields including:
+
+- current LinkedIn connection evidence;
+- latest outgoing invitation timestamp;
+- latest outbound/inbound activity;
+- reply state;
+- LGM campaign status;
+- Clay enrichment completion;
+- a conservative derived state and next action.
+
+`INVITE_SENT_NOT_CONNECTED` means only that an outgoing invitation exists and there is no current connection evidence. It does not mean LinkedIn reports the invitation as pending.
+
+The operational tables have RLS enabled and are not exposed to `anon` or `authenticated`; the RPC is intended for trusted server-side access via `service_role`.
+
 ## Run locally
 
 Using `uv`:
@@ -94,8 +122,9 @@ The tests verify endpoint/finder shapes, pagination, read-only MCP annotations, 
 
 ## Deliberately not included in v0.1
 
-- CRM reconciliation
+- automatic LinkedIn-to-Supabase synchronization
+- Clay enrichment ingestion
+- LGM campaign/API/webhook ingestion
 - OAuth refresh/token storage
-- higher-level lead/outreach aggregation
-- deployment-specific auth
+- deployment-specific auth beyond the private Supabase state boundary
 - any LinkedIn mutation

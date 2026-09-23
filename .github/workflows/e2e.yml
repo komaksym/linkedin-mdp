@@ -30,14 +30,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Require LinkedIn secret
-        shell: bash
-        run: |
-          if [ -z "$LINKEDIN_ACCESS_TOKEN" ]; then
-            echo "Missing repository secret ORION_TOKEN" >&2
-            exit 2
-          fi
-
       - name: Install
         run: uv sync --extra dev
 

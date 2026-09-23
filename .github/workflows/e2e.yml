@@ -39,7 +39,7 @@ jobs:
           uv run linkedin-mdp-mcp >server.log 2>&1 &
           echo $! > server.pid
           for i in {1..30}; do
-            if curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/mcp | grep -Eq '200|400|405'; then
+            if (echo > /dev/tcp/127.0.0.1/8000) 2>/dev/null; then
               exit 0
             fi
             sleep 1

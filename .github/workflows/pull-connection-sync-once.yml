@@ -1,0 +1,76 @@
+name: Pull LinkedIn Connection Sync Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/pull-connection-sync-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pull-connection-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      MCP_HOST: 127.0.0.1
+      MCP_PORT: '8000'
+      SYNC_PUBLIC_KEY_PATH: /tmp/sync-public.pem
+      SYNC_OUTPUT_DIR: connection-sync-artifact
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Write one-time public key
+        shell: bash
+        run: |
+          cat > "$SYNC_PUBLIC_KEY_PATH" <<'EOF'
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjbGPw6DCggIR5/4/F/Pm
+PxtDaEhOYa1bT9BwPtetedzakVX6Q+WcklG2+HTLC0Olws430/nXJqzEHnpyWVmN
+EpH+Q6w7kFx35fta796rviVVhNdiQ8G3g18gypjJABWy6XY2nBSXbilLC9IOePu6
+3YPetzqR9azZaQAMIq6g6P6FlxYvAhrlE3Cw3SvHJF9TQ4rLUcMEdymQzejW5VBB
+c0uuY4ie2p71gy7QludMprWwUao4HfeXkotjXxz4M0CK0HAJp2aILx5ObHrBy3Oe
+KMEFew0/F8TSogd3CnbyoxU3Myh3uXhTDJDjtjlPHRNwr2U9IfYqy2k90cHHT8cD
+NwIDAQAB
+-----END PUBLIC KEY-----
+          EOF
+
+      - name: Start MCP server
+        shell: bash
+        run: |
+          uv run linkedin-mdp-mcp >server.log 2>&1 &
+          echo $! > server.pid
+          for i in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/8000) 2>/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+
+      - name: Pull and encrypt changelog + connections
+        run: uv run --with cryptography python scripts/pull_connection_sync.py
+
+      - name: Upload encrypted connection sync
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-connection-sync-encrypted
+          path: connection-sync-artifact/
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Server log on failure
+        if: failure()
+        run: cat server.log || true

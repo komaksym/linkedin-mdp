@@ -1,0 +1,67 @@
+name: Validate CONNECTIONS Sync E2E
+
+on:
+  push:
+    branches:
+      - feature/connections-supabase-reconciliation
+    paths:
+      - '.github/workflows/validate-connections-sync-e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Reconcile first pass
+        run: uv run python scripts/sync_connections.py | tee run1.json
+
+      - name: Reconcile immediate second pass
+        run: uv run python scripts/sync_connections.py | tee run2.json
+
+      - name: Assert replay is idempotent
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+
+          with open("run1.json", encoding="utf-8") as f:
+              first = json.load(f)
+          with open("run2.json", encoding="utf-8") as f:
+              second = json.load(f)
+
+          assert first["fetched"] > 0
+          assert first["fetched"] == first["matched"] + first["unmatched"]
+          assert second["fetched"] == first["fetched"]
+          assert second["matched"] == first["matched"]
+          assert second["unmatched"] == first["unmatched"]
+          assert second["inserted"] == 0
+          print("idempotency_verified=true")
+          PY
+
+      - name: Upload aggregate validation counts
+        uses: actions/upload-artifact@v4
+        with:
+          name: connection-sync-e2e-summary
+          path: |
+            run1.json
+            run2.json
+          retention-days: 1
+          if-no-files-found: error

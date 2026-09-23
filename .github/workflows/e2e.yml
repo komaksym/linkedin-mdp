@@ -30,6 +30,27 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Direct LinkedIn auth diagnostic
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          t = os.environ["LINKEDIN_ACCESS_TOKEN"]
+          print("token_nonempty=", bool(t))
+          print("token_length=", len(t))
+          print("starts_with_bearer=", t.lower().startswith("bearer "))
+          print("has_outer_quotes=", len(t) >= 2 and t[0] == t[-1] and t[0] in "'\"")
+          print("contains_newline=", "\n" in t or "\r" in t)
+          PY
+
+          code="$(curl -sS -o linkedin_direct.json -w '%{http_code}'             'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=CONNECTIONS&start=0&count=1'             -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN"             -H "Linkedin-Version: $LINKEDIN_API_VERSION"             -H 'Content-Type: application/json')"
+          echo "direct_linkedin_http_status=$code"
+          cat linkedin_direct.json
+          echo
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            exit 3
+          fi
+
       - name: Install
         run: uv sync --extra dev
 

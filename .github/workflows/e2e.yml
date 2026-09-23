@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
       LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
       MCP_HOST: 127.0.0.1
       MCP_PORT: '8000'
@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "$LINKEDIN_ACCESS_TOKEN" ]; then
-            echo "Missing repository secret LINKEDIN_ACCESS_TOKEN" >&2
+            echo "Missing repository secret ORION_TOKEN" >&2
             exit 2
           fi
 

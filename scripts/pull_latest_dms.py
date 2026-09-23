@@ -34,7 +34,8 @@ def _date_key(row: dict) -> float:
             x = float(text)
             return x / 1000.0 if x > 10_000_000_000 else x
         try:
-            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            normalized = text.replace(" UTC", "+00:00").replace("Z", "+00:00")
+            dt = datetime.fromisoformat(normalized)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt.timestamp()

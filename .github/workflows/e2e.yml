@@ -43,52 +43,13 @@ jobs:
           print("contains_newline=", "\n" in t or "\r" in t)
           PY
 
-          code="$(curl -sS -o linkedin_direct.json -w '%{http_code}' \
-            'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=CONNECTIONS&start=0&count=1' \
-            -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN" \
-            -H "Linkedin-Version: $LINKEDIN_API_VERSION" \
-            -H 'Content-Type: application/json')"
+          code="$(curl -sS -o linkedin_direct.json -w '%{http_code}'             'https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=CONNECTIONS&start=0&count=1'             -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN"             -H "Linkedin-Version: $LINKEDIN_API_VERSION"             -H 'Content-Type: application/json')"
           echo "direct_linkedin_http_status=$code"
           if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
             cat linkedin_direct.json
             echo
             exit 3
           fi
-
-      - name: Extract CONNECTIONS schema only
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json
-
-          with open("linkedin_direct.json", encoding="utf-8") as f:
-              payload = json.load(f)
-
-          rows = []
-          for element in payload.get("elements", []):
-              if isinstance(element, dict):
-                  data = element.get("snapshotData")
-                  if isinstance(data, list):
-                      rows.extend(data)
-
-          first = rows[0] if rows and isinstance(rows[0], dict) else {}
-          schema = {
-              "row_count_in_probe": len(rows),
-              "row_keys": sorted(first),
-              "row_types": {key: type(first[key]).__name__ for key in sorted(first)},
-          }
-          with open("connection-schema.json", "w", encoding="utf-8") as f:
-              json.dump(schema, f, indent=2, sort_keys=True)
-          print("connection_schema_keys=", schema["row_keys"])
-          PY
-
-      - name: Upload CONNECTIONS schema
-        uses: actions/upload-artifact@v4
-        with:
-          name: linkedin-connections-schema
-          path: connection-schema.json
-          retention-days: 1
-          if-no-files-found: error
 
       - name: Install
         run: uv sync --extra dev

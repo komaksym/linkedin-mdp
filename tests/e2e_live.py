@@ -52,25 +52,11 @@ async def main() -> None:
             {"count": 10, "max_pages": 1},
         )
 
-        connection_rows = connections.get("rows", [])
-        first_connection = (
-            connection_rows[0]
-            if isinstance(connection_rows, list)
-            and connection_rows
-            and isinstance(connection_rows[0], dict)
-            else {}
-        )
-
         summary = {
             "protocol_version": str(client.protocol_version),
             "tools": sorted(names),
             "authorization_keys": sorted(auth.keys()),
-            "connections_rows": len(connection_rows),
-            "connections_row_keys": sorted(first_connection.keys()),
-            "connections_row_types": {
-                key: type(first_connection[key]).__name__
-                for key in sorted(first_connection.keys())
-            },
+            "connections_rows": len(connections.get("rows", [])),
             "invitations_rows": len(invitations.get("rows", [])),
             "inbox_rows": len(inbox.get("rows", [])),
             "changelog_events": len(changelog.get("events", [])),

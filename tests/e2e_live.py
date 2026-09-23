@@ -26,6 +26,13 @@ def _structured(result):
     return result.structured_content or {}
 
 
+async def _call(client: Client, name: str, args: dict, *, timeout: float = 45.0):
+    print(f"calling {name}", flush=True)
+    result = await asyncio.wait_for(client.call_tool(name, args), timeout=timeout)
+    print(f"ok {name}", flush=True)
+    return _structured(result)
+
+
 async def main() -> None:
     endpoint = os.getenv("MCP_ENDPOINT", "http://127.0.0.1:8000/mcp")
 
@@ -35,15 +42,14 @@ async def main() -> None:
         if names != EXPECTED_TOOLS:
             raise AssertionError(f"Unexpected MCP surface: {sorted(names)}")
 
-        auth = _structured(await client.call_tool("linkedin_authorization_status", {}))
-        connections = _structured(await client.call_tool("linkedin_connections", {"max_pages": 2}))
-        invitations = _structured(await client.call_tool("linkedin_invitations", {"max_pages": 2}))
-        inbox = _structured(await client.call_tool("linkedin_inbox", {"max_pages": 2}))
-        changelog = _structured(
-            await client.call_tool(
-                "linkedin_member_changelog",
-                {"count": 10, "max_pages": 1},
-            )
+        auth = await _call(client, "linkedin_authorization_status", {})
+        connections = await _call(client, "linkedin_connections", {"max_pages": 1})
+        invitations = await _call(client, "linkedin_invitations", {"max_pages": 1})
+        inbox = await _call(client, "linkedin_inbox", {"max_pages": 1})
+        changelog = await _call(
+            client,
+            "linkedin_member_changelog",
+            {"count": 10, "max_pages": 1},
         )
 
         summary = {

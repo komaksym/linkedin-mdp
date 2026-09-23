@@ -11,12 +11,25 @@ _LINKEDIN_HOST_RE = re.compile(
 )
 
 
+class ConnectionSyncError(RuntimeError):
+    pass
+
+
 @dataclass
 class ConnectionSyncPlan:
     fetched: int
     matched: int
     unmatched: int
     events: list[dict[str, Any]]
+
+
+@dataclass
+class ConnectionSyncSummary:
+    fetched: int
+    matched: int
+    unmatched: int
+    inserted: int
+    already_present: int
 
 
 def normalize_linkedin_url(value: Any) -> str | None:
@@ -106,4 +119,40 @@ def plan_connection_events(
         matched=matched,
         unmatched=unmatched,
         events=list(events_by_key.values()),
+    )
+
+
+async def reconcile_connections(
+    linkedin: Any,
+    supabase: Any,
+    *,
+    observed_at: datetime | None = None,
+) -> ConnectionSyncSummary:
+    snapshot = await linkedin.snapshot("CONNECTIONS", max_pages=50)
+    if not isinstance(snapshot, dict):
+        raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot must be an object")
+    if snapshot.get("truncated") is not False:
+        raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot is truncated")
+
+    rows = snapshot.get("rows")
+    if not isinstance(rows, list):
+        raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot did not return a rows list")
+
+    observed_at = observed_at or datetime.now(timezone.utc)
+    prospects_by_key = await supabase.prospect_ids_by_linkedin_key()
+    plan = plan_connection_events(
+        rows,
+        prospects_by_key,
+        observed_at=observed_at,
+    )
+    inserted = await supabase.insert_events_ignore_duplicates(plan.events)
+    if not isinstance(inserted, int) or inserted < 0 or inserted > len(plan.events):
+        raise ConnectionSyncError("Supabase returned an invalid inserted-event count")
+
+    return ConnectionSyncSummary(
+        fetched=plan.fetched,
+        matched=plan.matched,
+        unmatched=plan.unmatched,
+        inserted=inserted,
+        already_present=len(plan.events) - inserted,
     )

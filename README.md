@@ -32,6 +32,133 @@ api.linkedin.com
   /rest/memberChangeLogs
 ```
 
+## Outbound system architecture
+
+The target outbound system separates observation, enrichment, operational decision-making, and execution.
+
+```text
+                    +----------------+
+                    |      Clay      |
+                    |   enrichment   |
+                    +-------+--------+
+                            |
+                            | enrichment evidence
+                            v
++----------------+   +-------------------+   +--------------------+
+| LinkedIn MDP   |-->|     Supabase      |-->|        LGM         |
+| read-only      |   | operational truth |   | outbound executor  |
+| observation    |   | state + rules     |   | email / LinkedIn   |
++-------+--------+   +---------^---------+   +---------+----------+
+        |                      |                       |
+        | LinkedIn evidence    | execution evidence    |
+        +----------------------+-----------------------+
+```
+
+Responsibilities:
+
+- **LinkedIn MDP = sensor.** It observes actual LinkedIn state through the official read-only Member Data Portability API. It never performs LinkedIn mutations.
+- **Supabase/Postgres = brain.** It stores prospects and normalized provider evidence, derives current state, applies suppression/eligibility rules, and is the only component that decides whether a prospect may enter outreach.
+- **Clay = enrichment provider.** It adds evidence such as enrichment completion and discovered email addresses. Clay does not independently decide whether outreach is safe.
+- **La Growth Machine (LGM) = actuator/executor.** It executes approved outbound sequences. LGM does not independently decide whether a prospect is eligible.
+- **ChatGPT/MCP = operator interface.** It queries unified state and eventually triggers controlled actions such as queueing already-eligible prospects.
+
+The central invariant is:
+
+```text
+store evidence -> derive state -> decide eligibility -> execute -> reconcile
+```
+
+Do not collapse provider claims into one mutable status field.
+
+### Command vs observation
+
+LGM and LinkedIn MDP represent different kinds of evidence.
+
+```text
+LGM
+  = what the system asked/scheduled/executed
+
+LinkedIn MDP
+  = what LinkedIn actually exposes as having happened
+```
+
+For example:
+
+```text
+LGM_LINKEDIN_STEP
+        +
+LINKEDIN_INVITE_SENT observed by MDP
+        =
+execution claim + independent LinkedIn evidence
+```
+
+Both events should coexist. A later reconciliation layer can detect discrepancies rather than blindly trusting the executor.
+
+Authority by fact:
+
+| Fact | Primary authority |
+| --- | --- |
+| Prospect identity / operational state | Supabase |
+| Outreach eligibility / suppression | Supabase |
+| Enrichment result | Clay evidence stored in Supabase |
+| LGM campaign membership | LGM evidence stored in Supabase |
+| LGM email execution | LGM evidence stored in Supabase |
+| LinkedIn connection evidence | LinkedIn MDP |
+| LinkedIn invitation evidence | LinkedIn MDP |
+| LinkedIn message evidence | LinkedIn MDP |
+
+### Provider event flow
+
+All providers should write normalized evidence into the same event model.
+
+```text
+LinkedIn MDP --+
+Clay ----------+--> normalized events --> derived state --> eligibility
+LGM -----------+                              |
+                                               v
+                                              LGM
+```
+
+Current normalized event families include:
+
+```text
+LinkedIn
+  LINKEDIN_CONNECTION_FOUND
+  LINKEDIN_INVITE_SENT
+  LINKEDIN_MESSAGE_OUTBOUND
+  LINKEDIN_MESSAGE_INBOUND
+
+Clay
+  CLAY_ENRICHED
+  CLAY_EMAIL_FOUND
+
+LGM
+  LGM_LEAD_ADDED
+  LGM_EMAIL_SENT
+  LGM_LINKEDIN_STEP
+  LGM_REPLY
+  LGM_CAMPAIGN_FINISHED
+```
+
+The exact provider integrations are intentionally incremental. The data model should remain provider-agnostic enough that raw evidence can be reconciled without turning `events` into a mutable status table.
+
+### Planned LinkedIn reconciliation
+
+Fresh LinkedIn-to-Supabase synchronization is not implemented yet.
+
+The intended model is:
+
+```text
+changelog = cheap incremental signal about where to look
+snapshot  = durable reconciliation evidence
+events    = idempotent normalized evidence
+state     = derived from accumulated evidence
+```
+
+Normal synchronization should use recent changelog data to identify affected domains and then reconcile the relevant snapshots. Periodic full snapshot reconciliation should repair anything missed by incremental processing.
+
+Repeated ingestion of the same provider record must not create duplicate events.
+
 ## Central outreach state
 
 Supabase/Postgres now contains the first central-state vertical slice while the LinkedIn MCP surface remains exactly five read-only tools.

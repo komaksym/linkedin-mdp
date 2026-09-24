@@ -17,6 +17,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "pytest-asyncio>=0.24,<1"]
 
+[dependency-groups]
+sync = ["httpx>=0.28,<1"]
+
 [project.scripts]
 linkedin-mdp-mcp = "linkedin_mdp_mcp.server:main"
 linkedin-mdp-smoke = "linkedin_mdp_mcp.smoke:main"

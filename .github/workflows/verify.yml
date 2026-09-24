@@ -17,7 +17,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
         with:
-          version: '0.12.19'
+          version: '0.12.18'
           python-version: '3.12'
 
       - name: Generate lockfile for bootstrap

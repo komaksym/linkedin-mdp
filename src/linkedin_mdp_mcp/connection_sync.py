@@ -17,17 +17,19 @@ class ConnectionSyncError(RuntimeError):
 
 @dataclass
 class ConnectionSyncPlan:
-    fetched: int
-    matched: int
-    unmatched: int
+    fetched_rows: int
+    matched_rows: int
+    unique_matched: int
+    unmatched_rows: int
     events: list[dict[str, Any]]
 
 
 @dataclass
 class ConnectionSyncSummary:
-    fetched: int
-    matched: int
-    unmatched: int
+    fetched_rows: int
+    matched_rows: int
+    unique_matched: int
+    unmatched_rows: int
     inserted: int
     already_present: int
 
@@ -79,21 +81,21 @@ def plan_connection_events(
     observed_at: datetime,
 ) -> ConnectionSyncPlan:
     events_by_key: dict[str, dict[str, Any]] = {}
-    matched = 0
-    unmatched = 0
+    matched_rows = 0
+    unmatched_rows = 0
 
     for row in rows:
         if not isinstance(row, dict):
-            unmatched += 1
+            unmatched_rows += 1
             continue
 
         linkedin_url = normalize_linkedin_url(row.get("URL"))
         prospect_id = prospects_by_key.get(linkedin_url) if linkedin_url else None
         if prospect_id is None:
-            unmatched += 1
+            unmatched_rows += 1
             continue
 
-        matched += 1
+        matched_rows += 1
         external_key = f"connection:{linkedin_url}"
         if external_key in events_by_key:
             continue
@@ -115,9 +117,10 @@ def plan_connection_events(
         }
 
     return ConnectionSyncPlan(
-        fetched=len(rows),
-        matched=matched,
-        unmatched=unmatched,
+        fetched_rows=len(rows),
+        matched_rows=matched_rows,
+        unique_matched=len(events_by_key),
+        unmatched_rows=unmatched_rows,
         events=list(events_by_key.values()),
     )
 
@@ -146,13 +149,18 @@ async def reconcile_connections(
         observed_at=observed_at,
     )
     inserted = await supabase.insert_events_ignore_duplicates(plan.events)
-    if not isinstance(inserted, int) or inserted < 0 or inserted > len(plan.events):
+    if not isinstance(inserted, int) or inserted < 0 or inserted > plan.unique_matched:
         raise ConnectionSyncError("Supabase returned an invalid inserted-event count")
 
+    already_present = plan.unique_matched - inserted
+    if inserted + already_present != plan.unique_matched:
+        raise ConnectionSyncError("Reconciliation summary violated unique-matched invariant")
+
     return ConnectionSyncSummary(
-        fetched=plan.fetched,
-        matched=plan.matched,
-        unmatched=plan.unmatched,
+        fetched_rows=plan.fetched_rows,
+        matched_rows=plan.matched_rows,
+        unique_matched=plan.unique_matched,
+        unmatched_rows=plan.unmatched_rows,
         inserted=inserted,
-        already_present=len(plan.events) - inserted,
+        already_present=already_present,
     )

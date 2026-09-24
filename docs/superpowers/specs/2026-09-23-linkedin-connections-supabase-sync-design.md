@@ -43,7 +43,7 @@ This slice DOES:
 4. match it to an existing prospect;
 5. create one normalized `LINKEDIN_CONNECTION_FOUND` event per matched connection;
 6. make reruns idempotent;
-7. report counts only: fetched, matched, unmatched, inserted, already-present;
+7. report aggregate counts only: fetched_rows, matched_rows, unique_matched, unmatched_rows, inserted, already_present;
 8. provide a manual GitHub Actions entry point for a real E2E run.
 
 This slice DOES NOT:
@@ -129,6 +129,14 @@ If it is absent or unparseable, use the sync observation time and mark:
 ```
 
 The provider row remains in `payload.raw` so evidence is auditable. Raw rows must never be printed to GitHub Actions logs.
+
+Metrics expose cardinality grain explicitly. `fetched_rows`, `matched_rows`, and `unmatched_rows` are raw provider-row diagnostics. `unique_matched` is the deduplicated durable connection identity count, so completed replay-safe reconciliation satisfies:
+
+```text
+inserted + already_present == unique_matched
+```
+
+This keeps provider paging overlap observable without mixing it with durable event cardinality.
 
 ## Idempotency
 
@@ -240,7 +248,7 @@ Fail the run if:
 - prospect lookup fails;
 - event insert fails for anything other than an expected duplicate conflict.
 
-Do not fail because some connection rows are unmatched. Report their count only.
+Do not fail because some connection rows are unmatched. Report their raw-row count only as `unmatched_rows`.
 
 Do not print raw connection rows, names, email addresses, or private LinkedIn data in CI logs.
 

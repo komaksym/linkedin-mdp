@@ -1,0 +1,107 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: uv sync --extra dev
+      - name: Run Python suite
+        run: uv run pytest -q
+
+  database-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure psql is available
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+
+      - name: Prepare Supabase roles
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon noinherit;
+          create role authenticated noinherit;
+          create role service_role noinherit;
+          SQL
+
+      - name: Apply repository migrations before conflict-target migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='20260923224000_make_event_external_key_conflict_target.sql'
+          found=0
+          for migration in supabase/migrations/*.sql; do
+            if [[ "$(basename "$migration")" == "$target" ]]; then
+              found=1
+              break
+            fi
+            psql -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          if (( found == 0 )); then
+            echo "target migration not found" >&2
+            exit 1
+          fi
+
+      - name: Seed duplicate legacy evidence
+        run: psql -v ON_ERROR_STOP=1 -f tests/db/seed_connection_reconciliation.sql
+
+      - name: Apply conflict-target migration and remaining repository migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='20260923224000_make_event_external_key_conflict_target.sql'
+          apply=0
+          found=0
+          for migration in supabase/migrations/*.sql; do
+            if [[ "$(basename "$migration")" == "$target" ]]; then
+              apply=1
+              found=1
+            fi
+            if (( apply )); then
+              psql -v ON_ERROR_STOP=1 -f "$migration"
+            fi
+          done
+          if (( found == 0 )); then
+            echo "target migration not found" >&2
+            exit 1
+          fi
+
+      - name: Run database acceptance
+        run: psql -v ON_ERROR_STOP=1 -f tests/db/connection_reconciliation_acceptance.sql

@@ -35,6 +35,7 @@ jobs:
         run: |
           uv run python - <<'PY'
           import asyncio
+          import hashlib
           import json
 
           from linkedin_mdp_mcp.client import LinkedInMDPClient
@@ -47,6 +48,7 @@ jobs:
                   url = client._make_url("/rest/memberSnapshotData")
                   query = {"q": "criteria", "domain": "CONNECTIONS"}
                   seen_urls: set[str] = set()
+                  seen_row_hashes: set[str] = set()
                   page_summaries = []
 
                   for page_number in range(1, 51):
@@ -57,6 +59,29 @@ jobs:
                               data = element.get("snapshotData")
                               if isinstance(data, list):
                                   rows.extend(data)
+
+                      row_hashes = {
+                          hashlib.sha256(
+                              json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                          ).hexdigest()
+                          for row in rows
+                          if isinstance(row, dict)
+                      }
+                      element_metadata = []
+                      for element in payload.get("elements", []):
+                          if not isinstance(element, dict):
+                              continue
+                          safe = {}
+                          for key, value in element.items():
+                              if key == "snapshotData":
+                                  continue
+                              if key == "snapshotDomain":
+                                  safe[key] = value
+                              elif any(token in key.lower() for token in ("time", "date", "created", "generated", "updated")) and isinstance(value, (int, float, str)):
+                                  safe[key] = value
+                              else:
+                                  safe[key] = type(value).__name__
+                          element_metadata.append(safe)
 
                       normalized_urls = [
                           normalized
@@ -78,12 +103,17 @@ jobs:
                               "unique_urls": len(unique_page_urls),
                               "duplicates_within_page": len(normalized_urls) - len(unique_page_urls),
                               "overlap_with_previous_pages": len(unique_page_urls & seen_urls),
+                              "unique_exact_rows": len(row_hashes),
+                              "exact_row_overlap_with_previous_pages": len(row_hashes & seen_row_hashes),
+                              "elements": len(payload.get("elements", [])) if isinstance(payload.get("elements"), list) else None,
+                              "element_metadata": element_metadata,
                               "paging_start": paging.get("start"),
                               "paging_count": paging.get("count"),
                               "paging_total": paging.get("total"),
                           }
                       )
                       seen_urls.update(unique_page_urls)
+                      seen_row_hashes.update(row_hashes)
 
                       next_url = client._next_link(payload)
                       if next_url is None:

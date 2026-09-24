@@ -41,9 +41,10 @@ def test_reconciliation_plan_matches_existing_prospects_and_preserves_provider_e
 
     plan = plan_connection_events(rows, prospects_by_key, observed_at=observed_at)
 
-    assert plan.fetched == 2
-    assert plan.matched == 1
-    assert plan.unmatched == 1
+    assert plan.fetched_rows == 2
+    assert plan.matched_rows == 1
+    assert plan.unique_matched == 1
+    assert plan.unmatched_rows == 1
     assert plan.events == [
         {
             "prospect_id": "prospect-1",
@@ -88,9 +89,10 @@ def test_missing_or_non_linkedin_url_is_unmatched():
         observed_at=observed_at,
     )
 
-    assert plan.fetched == 2
-    assert plan.matched == 0
-    assert plan.unmatched == 2
+    assert plan.fetched_rows == 2
+    assert plan.matched_rows == 0
+    assert plan.unique_matched == 0
+    assert plan.unmatched_rows == 2
     assert plan.events == []
 
 
@@ -142,8 +144,9 @@ class FakeSupabase:
 
 
 @pytest.mark.asyncio
-async def test_reconcile_connections_reports_inserted_and_already_present_counts():
+async def test_reconcile_connections_exposes_raw_and_unique_matched_grains():
     rows = [
+        {"URL": "https://linkedin.com/in/one", "Connected On": "2026-09-20"},
         {"URL": "https://linkedin.com/in/one", "Connected On": "2026-09-20"},
         {"URL": "https://linkedin.com/in/two", "Connected On": "2026-09-21"},
         {"URL": "https://linkedin.com/in/unmatched", "Connected On": "2026-09-22"},
@@ -164,13 +167,15 @@ async def test_reconcile_connections_reports_inserted_and_already_present_counts
     )
 
     assert linkedin.calls == [("CONNECTIONS", 50)]
-    assert summary.fetched == 3
-    assert summary.matched == 2
-    assert summary.unmatched == 1
+    assert summary.fetched_rows == 4
+    assert summary.matched_rows == 3
+    assert summary.unique_matched == 2
+    assert summary.unmatched_rows == 1
     assert summary.inserted == 1
     assert summary.already_present == 1
+    assert summary.inserted + summary.already_present == summary.unique_matched
     assert supabase.written_events is not None
-    assert len(supabase.written_events) == 2
+    assert len(supabase.written_events) == summary.unique_matched
 
 
 @pytest.mark.asyncio

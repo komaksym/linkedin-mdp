@@ -30,6 +30,87 @@ jobs:
       - name: Install
         run: uv sync --extra dev
 
+      - name: Diagnose CONNECTIONS pagination safely
+        shell: bash
+        run: |
+          uv run python - <<'PY'
+          import asyncio
+          import json
+
+          from linkedin_mdp_mcp.client import LinkedInMDPClient
+          from linkedin_mdp_mcp.connection_sync import normalize_linkedin_url
+
+
+          async def main() -> None:
+              client = LinkedInMDPClient.from_env()
+              try:
+                  url = client._make_url("/rest/memberSnapshotData")
+                  query = {"q": "criteria", "domain": "CONNECTIONS"}
+                  seen_urls: set[str] = set()
+                  page_summaries = []
+
+                  for page_number in range(1, 51):
+                      payload = await client._get_json_url(url, query)
+                      rows = []
+                      for element in payload.get("elements", []):
+                          if isinstance(element, dict):
+                              data = element.get("snapshotData")
+                              if isinstance(data, list):
+                                  rows.extend(data)
+
+                      normalized_urls = [
+                          normalized
+                          for row in rows
+                          if isinstance(row, dict)
+                          for normalized in [normalize_linkedin_url(row.get("URL"))]
+                          if normalized is not None
+                      ]
+                      unique_page_urls = set(normalized_urls)
+                      paging = payload.get("paging")
+                      if not isinstance(paging, dict):
+                          paging = {}
+
+                      page_summaries.append(
+                          {
+                              "page": page_number,
+                              "rows": len(rows),
+                              "valid_urls": len(normalized_urls),
+                              "unique_urls": len(unique_page_urls),
+                              "duplicates_within_page": len(normalized_urls) - len(unique_page_urls),
+                              "overlap_with_previous_pages": len(unique_page_urls & seen_urls),
+                              "paging_start": paging.get("start"),
+                              "paging_count": paging.get("count"),
+                              "paging_total": paging.get("total"),
+                          }
+                      )
+                      seen_urls.update(unique_page_urls)
+
+                      next_url = client._next_link(payload)
+                      if next_url is None:
+                          break
+                      url = next_url
+                      query = None
+                  else:
+                      raise RuntimeError("CONNECTIONS pagination exceeded 50 pages")
+
+                  print(
+                      json.dumps(
+                          {
+                              "page_count": len(page_summaries),
+                              "pages": page_summaries,
+                              "total_rows": sum(page["rows"] for page in page_summaries),
+                              "total_unique_urls": len(seen_urls),
+                          },
+                          sort_keys=True,
+                      )
+                  )
+              finally:
+                  await client.aclose()
+
+
+          asyncio.run(main())
+          PY
+
       - name: Reconcile first pass
         shell: bash
         run: |

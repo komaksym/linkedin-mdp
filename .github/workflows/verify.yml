@@ -14,24 +14,34 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
         with:
           version: '0.12.18'
           python-version: '3.12'
 
-      - name: Generate lockfile for bootstrap
-        run: |
-          uv lock
-          echo '---UV_LOCK_BEGIN---'
-          cat uv.lock
-          echo '---UV_LOCK_END---'
-
       - name: Install
         run: uv sync --locked --extra dev
 
       - name: Run Python suite
         run: uv run --locked --no-sync pytest -q
+
+      - name: Verify production reconciliation runtime
+        run: |
+          rm -rf .venv
+          uv sync --locked --only-group sync
+          PYTHONPATH=src .venv/bin/python - <<'PY'
+          from linkedin_mdp_mcp.client import LinkedInMDPClient
+          from linkedin_mdp_mcp.connection_sync import reconcile_connections
+          from linkedin_mdp_mcp.supabase_client import SupabaseClient
+
+          assert LinkedInMDPClient
+          assert reconcile_connections
+          assert SupabaseClient
+          print("production-sync-runtime=ok")
+          PY
 
   database-acceptance:
     runs-on: ubuntu-latest
@@ -56,6 +66,8 @@ jobs:
       PGDATABASE: postgres
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
 
       - name: Ensure psql is available
         run: |

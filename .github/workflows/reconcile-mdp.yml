@@ -43,6 +43,22 @@ jobs:
                       out.extend(e["snapshotData"])
               return out
 
+          def element_meta(payload):
+              metas = []
+              for e in payload.get("elements", []):
+                  if not isinstance(e, dict):
+                      continue
+                  meta = {}
+                  for k, v in e.items():
+                      if k == "snapshotData":
+                          continue
+                      if isinstance(v, (str, int, float, bool)) or v is None:
+                          meta[k] = v
+                      else:
+                          meta[k] = {"type": type(v).__name__}
+                  metas.append(meta)
+              return metas
+
           def row_identity(domain, row):
               if not isinstance(row, dict):
                   return ""
@@ -61,6 +77,7 @@ jobs:
                   {"q": "criteria", "domain": domain},
               )
               first_rows = flatten(first)
+              print(f"{domain}_element_meta", json.dumps(element_meta(first), sort_keys=True))
               next_url = client._next_link(first)
               second_rows = []
               next_query = {}

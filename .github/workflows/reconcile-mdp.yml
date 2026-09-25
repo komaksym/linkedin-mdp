@@ -110,6 +110,7 @@ jobs:
                   await diag(client, "INVITATIONS")
                   connections = await client.snapshot("CONNECTIONS", max_pages=50)
                   invitations = await client.snapshot("INVITATIONS", max_pages=50)
+                  changelog = await client.changelog(count=50, max_pages=50)
               finally:
                   await client.aclose()
 
@@ -127,12 +128,20 @@ jobs:
                       "page_count": invitations["page_count"],
                       "rows": invitations["rows"],
                   },
+                  "changelog": {
+                      "api_version": changelog["api_version"],
+                      "page_count": changelog["page_count"],
+                      "events": changelog["events"],
+                      "next_start_time": changelog["next_start_time"],
+                  },
               }
               with open("mdp_snapshot.json", "w", encoding="utf-8") as f:
                   json.dump(payload, f, ensure_ascii=False)
 
               print("connections_count=", len(connections["rows"]))
               print("invitations_count=", len(invitations["rows"]))
+              print("changelog_count=", len(changelog["events"]))
+              print("changelog_next_start_time=", changelog["next_start_time"])
 
           asyncio.run(main())
           PY

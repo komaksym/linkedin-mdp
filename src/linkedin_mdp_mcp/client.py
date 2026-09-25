@@ -79,11 +79,14 @@ class LinkedInMDPClient:
         )
 
         rows: list[Any] = []
-        for element in page.elements:
+        # memberSnapshotData paginates snapshot versions, not disjoint row chunks.
+        # The newest element is last; concatenating versions duplicates nearly every row.
+        for element in reversed(page.elements):
             if isinstance(element, dict):
                 data = element.get("snapshotData")
                 if isinstance(data, list):
-                    rows.extend(data)
+                    rows = data
+                    break
 
         return {
             "api_version": self.api_version,

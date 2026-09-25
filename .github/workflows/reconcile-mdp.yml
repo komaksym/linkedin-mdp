@@ -25,18 +25,72 @@ jobs:
       - name: Install
         run: uv sync --extra dev
 
-      - name: Fetch encrypted MDP snapshots
+      - name: Diagnose paging and fetch encrypted snapshots
         shell: bash
         run: |
           set -euo pipefail
           uv run python - <<'PY'
           import asyncio
+          import hashlib
           import json
+          from urllib.parse import urlparse, parse_qs
           from linkedin_mdp_mcp.client import LinkedInMDPClient
+
+          def flatten(payload):
+              out = []
+              for e in payload.get("elements", []):
+                  if isinstance(e, dict) and isinstance(e.get("snapshotData"), list):
+                      out.extend(e["snapshotData"])
+              return out
+
+          def row_identity(domain, row):
+              if not isinstance(row, dict):
+                  return ""
+              if domain == "CONNECTIONS":
+                  return str(row.get("URL") or "")
+              return "|".join([
+                  str(row.get("Direction") or ""),
+                  str(row.get("Sent At") or ""),
+                  str(row.get("inviteeProfileUrl") or ""),
+                  str(row.get("inviterProfileUrl") or ""),
+              ])
+
+          async def diag(client, domain):
+              first = await client._get_json(
+                  "/rest/memberSnapshotData",
+                  {"q": "criteria", "domain": domain},
+              )
+              first_rows = flatten(first)
+              next_url = client._next_link(first)
+              second_rows = []
+              next_query = {}
+              if next_url:
+                  next_query = parse_qs(urlparse(next_url).query)
+                  second = await client._get_json_url(next_url, None)
+                  second_rows = flatten(second)
+              a = {row_identity(domain, r) for r in first_rows if row_identity(domain, r)}
+              b = {row_identity(domain, r) for r in second_rows if row_identity(domain, r)}
+              h1 = hashlib.sha256("\n".join(sorted(a)).encode()).hexdigest()[:16]
+              h2 = hashlib.sha256("\n".join(sorted(b)).encode()).hexdigest()[:16] if b else ""
+              print(
+                  f"{domain}_diag",
+                  json.dumps({
+                      "page1_rows": len(first_rows),
+                      "page1_unique": len(a),
+                      "page2_rows": len(second_rows),
+                      "page2_unique": len(b),
+                      "overlap_unique": len(a & b),
+                      "page1_hash": h1,
+                      "page2_hash": h2,
+                      "next_query": next_query,
+                  }, sort_keys=True),
+              )
 
           async def main():
               client = LinkedInMDPClient.from_env()
               try:
+                  await diag(client, "CONNECTIONS")
+                  await diag(client, "INVITATIONS")
                   connections = await client.snapshot("CONNECTIONS", max_pages=50)
                   invitations = await client.snapshot("INVITATIONS", max_pages=50)
               finally:

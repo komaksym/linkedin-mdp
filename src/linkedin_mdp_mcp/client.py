@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -71,6 +72,7 @@ class LinkedInMDPClient:
         )
 
     async def snapshot(self, domain: str, *, max_pages: int = 10) -> dict[str, Any]:
+        """Return all exact-distinct rows observed across paginated snapshot elements."""
         page = await self._get_paged(
             "/rest/memberSnapshotData",
             {"q": "criteria", "domain": domain},
@@ -79,14 +81,19 @@ class LinkedInMDPClient:
         )
 
         rows: list[Any] = []
-        # memberSnapshotData paginates snapshot versions, not disjoint row chunks.
-        # The newest element is last; concatenating versions duplicates nearly every row.
-        for element in reversed(page.elements):
-            if isinstance(element, dict):
-                data = element.get("snapshotData")
-                if isinstance(data, list):
-                    rows = data
-                    break
+        seen: set[str] = set()
+        for element in page.elements:
+            if not isinstance(element, dict):
+                continue
+            data = element.get("snapshotData")
+            if not isinstance(data, list):
+                continue
+            for row in data:
+                key = json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(row)
 
         return {
             "api_version": self.api_version,

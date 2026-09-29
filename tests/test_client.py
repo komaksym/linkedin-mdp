@@ -7,7 +7,8 @@ from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
 
 
 @pytest.mark.asyncio
-async def test_snapshot_uses_latest_version_and_follows_next_link():
+async def test_snapshot_merges_distinct_rows_across_overlapping_versions():
+    """Keep every distinct row observed across paginated snapshot versions."""
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -18,12 +19,31 @@ async def test_snapshot_uses_latest_version_and_follows_next_link():
         if request.url.params.get("start") == "1":
             return httpx.Response(
                 200,
-                json={"elements": [{"snapshotData": [{"First Name": "Grace"}]}], "paging": {"links": []}},
+                json={
+                    "elements": [
+                        {
+                            "snapshotDomain": "CONNECTIONS",
+                            "snapshotData": [
+                                {"First Name": "Ada"},
+                                {"First Name": "Linus"},
+                            ],
+                        }
+                    ],
+                    "paging": {"links": []},
+                },
             )
         return httpx.Response(
             200,
             json={
-                "elements": [{"snapshotData": [{"First Name": "Ada"}]}],
+                "elements": [
+                    {
+                        "snapshotDomain": "CONNECTIONS",
+                        "snapshotData": [
+                            {"First Name": "Ada"},
+                            {"First Name": "Grace"},
+                        ],
+                    }
+                ],
                 "paging": {
                     "links": [
                         {
@@ -39,7 +59,11 @@ async def test_snapshot_uses_latest_version_and_follows_next_link():
         client = LinkedInMDPClient("test-token", http=http)
         result = await client.snapshot("CONNECTIONS")
 
-    assert result["rows"] == [{"First Name": "Grace"}]
+    assert result["rows"] == [
+        {"First Name": "Ada"},
+        {"First Name": "Grace"},
+        {"First Name": "Linus"},
+    ]
     assert result["page_count"] == 2
     assert result["truncated"] is False
     assert len(seen) == 2

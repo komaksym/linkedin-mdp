@@ -43,7 +43,7 @@ async def main() -> None:
             raise AssertionError(f"Unexpected MCP surface: {sorted(names)}")
 
         auth = await _call(client, "linkedin_authorization_status", {})
-        connections = await _call(client, "linkedin_connections", {"max_pages": 1})
+        connections = await _call(client, "linkedin_connections", {"max_pages": 10})
         invitations = await _call(client, "linkedin_invitations", {"max_pages": 1})
         inbox = await _call(client, "linkedin_inbox", {"max_pages": 1})
         changelog = await _call(
@@ -52,11 +52,26 @@ async def main() -> None:
             {"count": 10, "max_pages": 1},
         )
 
+        chunks = [
+            len(element.get("snapshotData", []))
+            for element in connections.get("raw_elements", [])
+            if isinstance(element, dict) and isinstance(element.get("snapshotData"), list)
+        ]
+        connection_rows = len(connections.get("rows", []))
+        if connections.get("page_count", 0) < 2:
+            raise AssertionError("Expected live CONNECTIONS data to span multiple pages")
+        if connection_rows != sum(chunks):
+            raise AssertionError(
+                f"CONNECTIONS pagination lost rows: rows={connection_rows}, raw_rows={sum(chunks)}"
+            )
+
         summary = {
             "protocol_version": str(client.protocol_version),
             "tools": sorted(names),
             "authorization_keys": sorted(auth.keys()),
-            "connections_rows": len(connections.get("rows", [])),
+            "connections_rows": connection_rows,
+            "connections_raw_rows": sum(chunks),
+            "connections_page_count": connections.get("page_count"),
             "invitations_rows": len(invitations.get("rows", [])),
             "inbox_rows": len(inbox.get("rows", [])),
             "changelog_events": len(changelog.get("events", [])),

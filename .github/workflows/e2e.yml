@@ -2,7 +2,7 @@ name: Live LinkedIn E2E
 
 on:
   push:
-    branches: [main]
+    branches: [main, validate/snapshot-pagination-20260929]
     paths:
       - '.github/workflows/e2e.yml'
       - 'pyproject.toml'
@@ -53,6 +53,12 @@ jobs:
 
       - name: Install
         run: uv sync --extra dev
+
+      - name: Run full test suite
+        run: uv run pytest -q
+
+      - name: Build package
+        run: uv build
 
       - name: Start MCP server
         shell: bash

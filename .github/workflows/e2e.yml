@@ -87,7 +87,7 @@ jobs:
                   if not isinstance(row, dict):
                       continue
                   connected = parse_date(row.get("Connected On"))
-                  if connected is None or not (date(2026, 9, 26) <= connected <= date(2026, 9, 29)):
+                  if connected is None or not (date(2026, 9, 21) <= connected <= date(2026, 9, 29)):
                       continue
                   key = row.get("URL") or (row.get("First Name"), row.get("Last Name"), row.get("Company"), row.get("Connected On"))
                   if key in seen:

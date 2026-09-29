@@ -19,20 +19,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12'
-
       - name: Install
         run: uv sync --extra dev
-
-      - name: Map recent outbound LinkedIn messages
+      - name: Inspect recent outbound LinkedIn message payloads
         shell: bash
         run: |
           uv run python - <<'PY'
-          import asyncio
-          import json
+          import asyncio, json
           from datetime import datetime, timezone
           from linkedin_mdp_mcp.client import LinkedInMDPClient
 
@@ -45,35 +41,25 @@ jobs:
                   await client.aclose()
 
               rows = []
-              keys = set()
               for e in data.get("events", []):
                   if not isinstance(e, dict) or e.get("resourceName") != "messages" or e.get("method") != "CREATE":
                       continue
                   a = e.get("activity")
-                  if not isinstance(a, dict):
-                      continue
-                  keys.update(str(k) for k in a.keys())
-                  owner = e.get("owner")
-                  author = a.get("author")
-                  if not owner or author != owner:
+                  if not isinstance(a, dict) or a.get("author") != e.get("owner"):
                       continue
                   created = a.get("createdAt")
                   if not isinstance(created, int) or created < start:
                       continue
-
-                  content = a.get("content")
-                  if not isinstance(content, str):
-                      content = ""
                   rows.append({
                       "createdAt": created,
-                      "thread": a.get("thread"),
                       "resourceId": e.get("resourceId"),
-                      "content_preview": content[:260],
+                      "thread": a.get("thread"),
+                      "content": a.get("content"),
+                      "messageContexts": a.get("messageContexts"),
+                      "actor": a.get("actor"),
+                      "owner": a.get("owner"),
                   })
-
               rows.sort(key=lambda x: x["createdAt"])
-              print("OUTBOUND_ACTIVITY_KEYS=" + json.dumps(sorted(keys)))
-              print("OUTBOUND_ROWS=" + json.dumps(rows, ensure_ascii=False, sort_keys=True))
-
+              print("OUTBOUND_PAYLOADS=" + json.dumps(rows, ensure_ascii=False, sort_keys=True))
           asyncio.run(main())
           PY

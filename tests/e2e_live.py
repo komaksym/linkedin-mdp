@@ -16,6 +16,7 @@ EXPECTED_TOOLS = {
 
 
 def _structured(result):
+    """Return structured MCP content or raise with the tool's text error."""
     if result.is_error:
         texts = []
         for block in result.content:
@@ -27,6 +28,7 @@ def _structured(result):
 
 
 async def _call(client: Client, name: str, args: dict, *, timeout: float = 45.0):
+    """Call one MCP tool with a bounded timeout and return structured content."""
     print(f"calling {name}", flush=True)
     result = await asyncio.wait_for(client.call_tool(name, args), timeout=timeout)
     print(f"ok {name}", flush=True)
@@ -34,6 +36,7 @@ async def _call(client: Client, name: str, args: dict, *, timeout: float = 45.0)
 
 
 async def main() -> None:
+    """Run the live LinkedIn MCP contract and pagination checks, then write a summary."""
     endpoint = os.getenv("MCP_ENDPOINT", "http://127.0.0.1:8000/mcp")
 
     async with Client(endpoint) as client:

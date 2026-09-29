@@ -79,6 +79,9 @@ async def main() -> None:
             "inbox_truncated": inbox.get("truncated"),
             "changelog_truncated": changelog.get("truncated"),
         }
+        with open("e2e-summary.json", "w", encoding="utf-8") as artifact:
+            json.dump(summary, artifact, indent=2, sort_keys=True)
+            artifact.write("\n")
         print(json.dumps(summary, indent=2, sort_keys=True))
 
 

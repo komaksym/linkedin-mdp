@@ -132,11 +132,27 @@ async def _fetch_connections_reference(
 
     async with httpx.AsyncClient(timeout=45.0) as http:
         while page_count < max_pages:
-            response = await http.get(url, params=params, headers=headers)
-            if not response.is_success:
-                raise RuntimeError(
-                    f"Direct CONNECTIONS reference failed with HTTP {response.status_code}"
-                )
+            for attempt in range(3):
+                try:
+                    response = await http.get(url, params=params, headers=headers)
+                except httpx.HTTPError as exc:
+                    if attempt >= 2:
+                        raise RuntimeError(
+                            f"Direct CONNECTIONS reference failed with a network error: {exc}"
+                        ) from exc
+                    await asyncio.sleep(0.25 * (2**attempt))
+                    continue
+
+                if response.is_success:
+                    break
+                if response.status_code not in {429, 500, 502, 503, 504} or attempt >= 2:
+                    raise RuntimeError(
+                        f"Direct CONNECTIONS reference failed with HTTP {response.status_code}"
+                    )
+                await asyncio.sleep(0.25 * (2**attempt))
+            else:
+                raise AssertionError("unreachable")
+
             try:
                 payload = response.json()
             except ValueError as exc:

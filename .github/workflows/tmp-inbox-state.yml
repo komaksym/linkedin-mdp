@@ -1,4 +1,4 @@
-name: Temporary LinkedIn INBOX state pull
+name: Temporary LinkedIn MDP changelog pull
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  pull-inbox:
+  pull-changelog:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -27,45 +27,67 @@ jobs:
       - name: Install
         run: uv sync --extra dev
 
-      - name: Pull recent LinkedIn INBOX metadata
+      - name: Pull recent LinkedIn MDP changelog metadata
         shell: bash
         run: |
           uv run python - <<'PY'
           import asyncio
           import json
+          import re
           from collections import Counter
+          from datetime import datetime, timezone
           from linkedin_mdp_mcp.client import LinkedInMDPClient
 
+          target_terms = [
+              "douglas", "arrieta", "candace", "saunders", "midori", "chace",
+              "nick", "craig", "phil", "santefort", "rachel", "ward",
+              "robert", "archie", "victoria", "castillo", "lance", "medrano",
+              "randall", "myers", "cortez", "chandler", "comeaux", "matthew", "pflaum",
+              "douglas-arrieta-9177a037", "candace-saunders-cf-l3-a50705237",
+              "midorimcguire", "nick-craig-54078a29", "phil-santefort-a94b0325b",
+              "rachelward3", "robert-archie-b03745100", "victoria-castillo-87167b2b",
+              "lancemedranomilford", "randall-myers-35744a86", "robert-cortez-66b140189",
+              "chandler-comeaux-5b8a52268", "matthew-pflaum-b89550202",
+          ]
+          BODYISH = re.compile(r"(content|body|subject|text)", re.I)
+
+          def sanitize(v):
+              if isinstance(v, dict):
+                  return {str(k): sanitize(val) for k, val in v.items() if not BODYISH.search(str(k))}
+              if isinstance(v, list):
+                  return [sanitize(x) for x in v[:50]]
+              if isinstance(v, str):
+                  return v[:500]
+              return v
+
           async def main():
+              start = int(datetime(2026, 9, 28, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
               client = LinkedInMDPClient.from_env()
               try:
-                  snap = await client.snapshot("INBOX", max_pages=50)
+                  data = await client.changelog(start_time=start, count=50, max_pages=50)
               finally:
                   await client.aclose()
 
-              rows = [r for r in snap.get("rows", []) if isinstance(r, dict)]
-              print("INBOX_TOTAL=" + str(len(rows)))
-              print("INBOX_TRUNCATED=" + str(snap.get("truncated")))
-              print("FOLDER_COUNTS=" + json.dumps(Counter(str(r.get("FOLDER")) for r in rows), sort_keys=True))
+              events = [e for e in data.get("events", []) if isinstance(e, dict)]
+              print("CHANGELOG_COUNT=" + str(len(events)))
+              print("CHANGELOG_TRUNCATED=" + str(data.get("truncated")))
+              print("CHANGELOG_KEYS=" + json.dumps(sorted({str(k) for e in events for k in e.keys()})))
 
-              sentish = [r for r in rows if "sent" in str(r.get("FOLDER", "")).lower()]
-              selected = sentish[:100] if sentish else rows[:40]
+              type_counts = Counter()
+              selected = []
+              for e in events:
+                  vals = []
+                  for k in ("type", "activityType", "resourceType", "domain", "action", "eventType"):
+                      if k in e:
+                          vals.append(f"{k}={e.get(k)}")
+                  type_counts[" | ".join(vals) if vals else "<no-type-fields>"] += 1
 
-              out = []
-              for r in selected:
-                  out.append({
-                      "DATE": r.get("DATE"),
-                      "FOLDER": r.get("FOLDER"),
-                      "FROM": r.get("FROM"),
-                      "TO": r.get("TO"),
-                      "SENDER PROFILE URL": r.get("SENDER PROFILE URL"),
-                      "RECIPIENT PROFILE URLS": r.get("RECIPIENT PROFILE URLS"),
-                      "CONVERSATION ID": r.get("CONVERSATION ID"),
-                      "CONVERSATION TITLE": r.get("CONVERSATION TITLE"),
-                      "CONTENT_PREVIEW": (str(r.get("CONTENT") or "")[:180]),
-                  })
+                  blob = json.dumps(e, ensure_ascii=False, sort_keys=True).lower()
+                  if "message" in blob or "inmail" in blob or any(t in blob for t in target_terms):
+                      selected.append(sanitize(e))
 
-              print("RECENT_SENT_ROWS=" + json.dumps(out, ensure_ascii=False, sort_keys=True))
+              print("CHANGELOG_TYPE_COUNTS=" + json.dumps(type_counts, ensure_ascii=False, sort_keys=True))
+              print("CHANGELOG_SELECTED=" + json.dumps(selected, ensure_ascii=False, sort_keys=True))
 
           asyncio.run(main())
           PY

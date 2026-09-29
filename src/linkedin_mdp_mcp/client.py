@@ -72,6 +72,7 @@ class LinkedInMDPClient:
         )
 
     async def snapshot(self, domain: str, *, max_pages: int = 10) -> dict[str, Any]:
+        """Return all exact-distinct rows observed across paginated snapshot elements."""
         page = await self._get_paged(
             "/rest/memberSnapshotData",
             {"q": "criteria", "domain": domain},

@@ -79,9 +79,9 @@ class LinkedInMDPClient:
         )
 
         rows: list[Any] = []
-        # memberSnapshotData paginates snapshot versions, not disjoint row chunks.
-        # The newest element is last; concatenating versions duplicates nearly every row.
-        for element in reversed(page.elements):
+        # memberSnapshotData paginates overlapping snapshot versions. The current
+        # version is returned first; later elements can be older, smaller snapshots.
+        for element in page.elements:
             if isinstance(element, dict):
                 data = element.get("snapshotData")
                 if isinstance(data, list):

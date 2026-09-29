@@ -53,23 +53,32 @@ async def main() -> None:
         )
 
         raw_connections = connections.get("raw_elements", [])
-        first_connection_rows = []
+        distinct_connection_rows = []
+        seen_connection_rows = set()
+        snapshot_versions = 0
         for element in raw_connections:
-            if isinstance(element, dict) and isinstance(element.get("snapshotData"), list):
-                first_connection_rows = element["snapshotData"]
-                break
+            if not isinstance(element, dict) or not isinstance(element.get("snapshotData"), list):
+                continue
+            snapshot_versions += 1
+            for row in element["snapshotData"]:
+                key = json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                if key in seen_connection_rows:
+                    continue
+                seen_connection_rows.add(key)
+                distinct_connection_rows.append(row)
 
         if connections.get("page_count", 0) < 2:
             raise AssertionError("Connections E2E did not exercise snapshot pagination")
-        if connections.get("rows", []) != first_connection_rows:
-            raise AssertionError("Connections snapshot did not select the first returned version")
+        if connections.get("rows", []) != distinct_connection_rows:
+            raise AssertionError("Connections snapshot dropped or duplicated paged snapshot rows")
 
         summary = {
             "protocol_version": str(client.protocol_version),
             "tools": sorted(names),
             "authorization_keys": sorted(auth.keys()),
             "connections_rows": len(connections.get("rows", [])),
-            "connections_first_snapshot_rows": len(first_connection_rows),
+            "connections_distinct_raw_rows": len(distinct_connection_rows),
+            "connections_snapshot_versions": snapshot_versions,
             "connections_page_count": connections.get("page_count"),
             "invitations_rows": len(invitations.get("rows", [])),
             "inbox_rows": len(inbox.get("rows", [])),

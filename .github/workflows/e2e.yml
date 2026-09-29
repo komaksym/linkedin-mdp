@@ -71,6 +71,14 @@ jobs:
       - name: Run live MCP to LinkedIn E2E
         run: uv run python tests/e2e_live.py
 
+      - name: Upload live E2E summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-mdp-e2e-summary
+          path: e2e-summary.json
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Server log on failure
         if: failure()
         run: cat server.log || true

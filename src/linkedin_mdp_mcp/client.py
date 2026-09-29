@@ -82,8 +82,6 @@ class LinkedInMDPClient:
 
         rows: list[Any] = []
         seen: set[str] = set()
-        # memberSnapshotData can return overlapping snapshots across pages.
-        # Preserve every distinct JSON row instead of trusting page order.
         for element in page.elements:
             if not isinstance(element, dict):
                 continue

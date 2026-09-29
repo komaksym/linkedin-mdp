@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Preserve every LinkedIn connection across paginated snapshots</title>
+  <desc id="desc">Infographic explaining the old page-order assumption, the exact-row merge fix, and live verification results for PR 3.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B1020"/>
+      <stop offset="100%" stop-color="#111A2F"/>
+    </linearGradient>
+    <linearGradient id="fix" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#635BFF"/>
+      <stop offset="100%" stop-color="#2DD4BF"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1430" cy="90" r="220" fill="#635BFF" opacity="0.08"/>
+  <circle cx="120" cy="840" r="260" fill="#2DD4BF" opacity="0.06"/>
+
+  <text x="90" y="105" fill="#FFFFFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="48" font-weight="750">
+    Preserve every connection across snapshot pages
+  </text>
+  <text x="90" y="153" fill="#AAB4CC" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="24">
+    PR #3 removes an unsupported page-order assumption and makes pagination lossless.
+  </text>
+
+  <!-- BEFORE -->
+  <rect x="90" y="225" width="425" height="470" rx="28" fill="#151D31" stroke="#374056" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="120" y="255" width="108" height="38" rx="19" fill="#3A2029"/>
+  <text x="174" y="281" text-anchor="middle" fill="#FF8A9B" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" font-weight="750" letter-spacing="1.2">BEFORE</text>
+
+  <text x="120" y="343" fill="#FFFFFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="30" font-weight="700">Pick one snapshot</text>
+  <text x="120" y="384" fill="#AAB4CC" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="20">
+    <tspan x="120" dy="0">The API can return overlapping snapshot</tspan>
+    <tspan x="120" dy="30">elements across pages, with no timestamp</tspan>
+    <tspan x="120" dy="30">proving which page is the newest.</tspan>
+  </text>
+
+  <rect x="120" y="500" width="106" height="90" rx="16" fill="#202A42" stroke="#4A5673"/>
+  <rect x="245" y="500" width="106" height="90" rx="16" fill="#202A42" stroke="#4A5673"/>
+  <rect x="370" y="500" width="106" height="90" rx="16" fill="#202A42" stroke="#4A5673"/>
+  <text x="173" y="540" text-anchor="middle" fill="#DCE4F5" font-family="monospace" font-size="18">page 1</text>
+  <text x="298" y="540" text-anchor="middle" fill="#DCE4F5" font-family="monospace" font-size="18">page 2</text>
+  <text x="423" y="540" text-anchor="middle" fill="#DCE4F5" font-family="monospace" font-size="18">page N</text>
+  <text x="298" y="575" text-anchor="middle" fill="#FF8A9B" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" font-weight="700">choose one → drop rows</text>
+
+  <text x="120" y="646" fill="#FFB4BF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="21" font-weight="650">
+    Result: recent connections could disappear silently.
+  </text>
+
+  <!-- ARROW 1 -->
+  <path d="M545 460 H595" stroke="#6C7895" stroke-width="5" stroke-linecap="round"/>
+  <path d="M585 445 L603 460 L585 475" fill="none" stroke="#6C7895" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- FIX -->
+  <rect x="625" y="225" width="425" height="470" rx="28" fill="#151D31" stroke="#635BFF" stroke-width="2.5" filter="url(#shadow)"/>
+  <rect x="655" y="255" width="88" height="38" rx="19" fill="#262352"/>
+  <text x="699" y="281" text-anchor="middle" fill="#A9A4FF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" font-weight="750" letter-spacing="1.2">FIX</text>
+
+  <text x="655" y="343" fill="#FFFFFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="30" font-weight="700">Merge exact-distinct rows</text>
+
+  <g font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="20">
+    <circle cx="674" cy="407" r="12" fill="#635BFF"/>
+    <text x="702" y="414" fill="#DCE4F5">Collect rows from every returned page</text>
+    <circle cx="674" cy="466" r="12" fill="#776FFF"/>
+    <text x="702" y="473" fill="#DCE4F5">Canonicalize each JSON row</text>
+    <circle cx="674" cy="525" r="12" fill="#4F9CCB"/>
+    <text x="702" y="532" fill="#DCE4F5">Deduplicate exact JSON matches</text>
+    <circle cx="674" cy="584" r="12" fill="#2DD4BF"/>
+    <text x="702" y="591" fill="#DCE4F5">Preserve first-seen order</text>
+  </g>
+
+  <rect x="655" y="622" width="365" height="48" rx="16" fill="url(#fix)" opacity="0.95"/>
+  <text x="837" y="653" text-anchor="middle" fill="#07101D" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="19" font-weight="800">
+    no first/last-page freshness guess
+  </text>
+
+  <!-- ARROW 2 -->
+  <path d="M1080 460 H1130" stroke="#6C7895" stroke-width="5" stroke-linecap="round"/>
+  <path d="M1120 445 L1138 460 L1120 475" fill="none" stroke="#6C7895" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- PROOF -->
+  <rect x="1160" y="225" width="350" height="470" rx="28" fill="#151D31" stroke="#2DD4BF" stroke-width="2.5" filter="url(#shadow)"/>
+  <rect x="1190" y="255" width="105" height="38" rx="19" fill="#153B38"/>
+  <text x="1242" y="281" text-anchor="middle" fill="#6EE7D6" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" font-weight="750" letter-spacing="1.2">PROVEN</text>
+
+  <text x="1190" y="343" fill="#FFFFFF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="30" font-weight="700">Live MCP E2E</text>
+  <text x="1190" y="382" fill="#AAB4CC" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="19">Final verified implementation</text>
+
+  <text x="1190" y="470" fill="#6EE7D6" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="50" font-weight="800">3</text>
+  <text x="1255" y="470" fill="#DCE4F5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="21" font-weight="650">pages exercised</text>
+
+  <text x="1190" y="548" fill="#6EE7D6" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="50" font-weight="800">649</text>
+  <text x="1305" y="536" fill="#DCE4F5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="19" font-weight="650">returned rows</text>
+  <text x="1305" y="562" fill="#8FA0BF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="17">= 649 distinct raw rows</text>
+
+  <text x="1190" y="630" fill="#6EE7D6" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="24" font-weight="800">truncated = false</text>
+
+  <!-- Footer -->
+  <rect x="90" y="750" width="1420" height="90" rx="24" fill="#121A2B" stroke="#2A354D"/>
+  <text x="120" y="786" fill="#8FA0BF" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="17" font-weight="700" letter-spacing="1.1">UNCHANGED</text>
+  <text x="120" y="820" fill="#DCE4F5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="20">
+    Public response shape  •  pagination transport  •  authorization  •  tool names  •  production dependencies
+  </text>
+  <text x="1480" y="820" text-anchor="end" fill="#71809F" font-family="monospace" font-size="16">linkedin-mdp · PR #3</text>
+</svg>

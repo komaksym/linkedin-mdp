@@ -43,7 +43,7 @@ async def main() -> None:
             raise AssertionError(f"Unexpected MCP surface: {sorted(names)}")
 
         auth = await _call(client, "linkedin_authorization_status", {})
-        connections = await _call(client, "linkedin_connections", {"max_pages": 1})
+        connections = await _call(client, "linkedin_connections", {"max_pages": 10})
         invitations = await _call(client, "linkedin_invitations", {"max_pages": 1})
         inbox = await _call(client, "linkedin_inbox", {"max_pages": 1})
         changelog = await _call(
@@ -52,11 +52,25 @@ async def main() -> None:
             {"count": 10, "max_pages": 1},
         )
 
+        raw_connections = connections.get("raw_elements", [])
+        first_connection_rows = []
+        for element in raw_connections:
+            if isinstance(element, dict) and isinstance(element.get("snapshotData"), list):
+                first_connection_rows = element["snapshotData"]
+                break
+
+        if connections.get("page_count", 0) < 2:
+            raise AssertionError("Connections E2E did not exercise snapshot pagination")
+        if connections.get("rows", []) != first_connection_rows:
+            raise AssertionError("Connections snapshot did not select the first returned version")
+
         summary = {
             "protocol_version": str(client.protocol_version),
             "tools": sorted(names),
             "authorization_keys": sorted(auth.keys()),
             "connections_rows": len(connections.get("rows", [])),
+            "connections_first_snapshot_rows": len(first_connection_rows),
+            "connections_page_count": connections.get("page_count"),
             "invitations_rows": len(invitations.get("rows", [])),
             "inbox_rows": len(inbox.get("rows", [])),
             "changelog_events": len(changelog.get("events", [])),

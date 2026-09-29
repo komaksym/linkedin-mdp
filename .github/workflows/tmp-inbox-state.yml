@@ -1,0 +1,106 @@
+name: Temporary LinkedIn INBOX state pull
+
+on:
+  push:
+    branches: [feature/connections-supabase-reconciliation]
+    paths:
+      - '.github/workflows/tmp-inbox-state.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pull-inbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Pull matching LinkedIn INBOX metadata
+        shell: bash
+        run: |
+          uv run python - <<'PY'
+          import asyncio
+          import json
+          import re
+          from linkedin_mdp_mcp.client import LinkedInMDPClient
+
+          targets = [
+              ("Douglas Arrieta", "douglas-arrieta-9177a037"),
+              ("Candace Saunders", "candace-saunders-cf-l3-a50705237"),
+              ("Midori Chace", "midorimcguire"),
+              ("Nick Craig", "nick-craig-54078a29"),
+              ("Phil Santefort", "phil-santefort-a94b0325b"),
+              ("Rachel Ward", "rachelward3"),
+              ("Robert Archie", "robert-archie-b03745100"),
+              ("Victoria Castillo", "victoria-castillo-87167b2b"),
+              ("Lance Medrano", "lancemedranomilford"),
+              ("Randall Myers", "randall-myers-35744a86"),
+              ("Robert Cortez", "robert-cortez-66b140189"),
+              ("Chandler Comeaux", "chandler-comeaux-5b8a52268"),
+              ("Matthew Pflaum", "matthew-pflaum-b89550202"),
+          ]
+
+          BODYISH = re.compile(r"(content|body|message|subject|text)", re.I)
+
+          def safe_value(v):
+              if isinstance(v, (str, int, float, bool)) or v is None:
+                  s = str(v) if v is not None else None
+                  if isinstance(s, str) and len(s) > 300:
+                      return s[:300] + "..."
+                  return s
+              if isinstance(v, list):
+                  return [safe_value(x) for x in v[:20]]
+              if isinstance(v, dict):
+                  return {str(k): safe_value(val) for k, val in v.items() if not BODYISH.search(str(k))}
+              return str(v)[:300]
+
+          async def main():
+              client = LinkedInMDPClient.from_env()
+              try:
+                  snap = await client.snapshot("INBOX", max_pages=50)
+              finally:
+                  await client.aclose()
+
+              rows = [r for r in snap.get("rows", []) if isinstance(r, dict)]
+              print("INBOX_TOTAL=" + str(len(rows)))
+              print("INBOX_TRUNCATED=" + str(snap.get("truncated")))
+              keys = sorted({str(k) for r in rows for k in r.keys()})
+              print("INBOX_KEYS=" + json.dumps(keys, ensure_ascii=False))
+
+              matches = []
+              for idx, row in enumerate(rows):
+                  blob = json.dumps(row, ensure_ascii=False, sort_keys=True).lower()
+                  matched_targets = []
+                  for name, slug in targets:
+                      if name.lower() in blob or slug.lower() in blob:
+                          matched_targets.append(name)
+                  if not matched_targets:
+                      continue
+                  sanitized = {
+                      str(k): safe_value(v)
+                      for k, v in row.items()
+                      if not BODYISH.search(str(k))
+                  }
+                  matches.append({
+                      "row_index": idx,
+                      "targets": matched_targets,
+                      "metadata": sanitized,
+                  })
+
+              print("MATCHED_ROWS=" + json.dumps(matches, ensure_ascii=False, sort_keys=True))
+              print("MATCHED_ROWS_COUNT=" + str(len(matches)))
+
+          asyncio.run(main())
+          PY

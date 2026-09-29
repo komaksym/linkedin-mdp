@@ -4,6 +4,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 command_name="${1:-all}"
 state_dir="${2:-}"
+if [[ -n "$state_dir" && "$state_dir" != /* ]]; then
+  state_dir="$PWD/$state_dir"
+fi
 
 require_state() {
   if [[ -z "$state_dir" ]]; then

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -79,14 +80,21 @@ class LinkedInMDPClient:
         )
 
         rows: list[Any] = []
-        # memberSnapshotData paginates overlapping snapshot versions. The current
-        # version is returned first; later elements can be older, smaller snapshots.
+        seen: set[str] = set()
+        # memberSnapshotData can return overlapping snapshots across pages.
+        # Preserve every distinct JSON row instead of trusting page order.
         for element in page.elements:
-            if isinstance(element, dict):
-                data = element.get("snapshotData")
-                if isinstance(data, list):
-                    rows = data
-                    break
+            if not isinstance(element, dict):
+                continue
+            data = element.get("snapshotData")
+            if not isinstance(data, list):
+                continue
+            for row in data:
+                key = json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(row)
 
         return {
             "api_version": self.api_version,

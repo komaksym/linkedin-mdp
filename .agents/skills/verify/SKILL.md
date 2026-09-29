@@ -19,7 +19,7 @@ For the normal isolated run, use the helper's all command:
 .agents/skills/verify/scripts/verify.sh all
 ~~~
 
-It runs uv sync --extra dev, allocates a free loopback port, starts exactly one server process, records its PID, and waits for the port to accept connections.
+It runs uv sync --extra dev, allocates a run-owned free loopback port, starts exactly one server process, records its PID, and waits for that process to own a listening endpoint.
 
 For a staged run:
 
@@ -28,7 +28,7 @@ state="$(mktemp -d "${TMPDIR:-/tmp}/linkedin-mdp-verify.XXXXXX")"
 .agents/skills/verify/scripts/verify.sh launch "$state"
 ~~~
 
-Each state directory gets its own port, so concurrent verification runs can coexist. Do not point the helper at an existing user-managed MCP process.
+Each state directory gets its own port, so concurrent verification runs can coexist. The helper ignores inherited MCP_PORT values and refuses to overwrite its own state files.
 
 ## Doctor
 
@@ -48,21 +48,21 @@ Exercise the real MCP surface:
 .agents/skills/verify/scripts/verify.sh drive "$state"
 ~~~
 
-The drive runs tests/e2e_live.py against the launched endpoint. That script calls all five public tools and requires CONNECTIONS to exercise multiple pages. Its row oracle uses type-sensitive structural JSON equality, independent from the production json.dumps dedupe key, and first proves that the old single-snapshot behavior is rejected.
+The drive runs tests/e2e_live.py against the launched endpoint. That script calls all five public tools. For CONNECTIONS it separately fetches the LinkedIn pagination stream as a reference, derives expected rows with type-sensitive structural JSON equality, compares the MCP page metadata and rows to that reference, and requires the live data to distinguish the pre-fix single-snapshot selector. It also runs a deterministic synthetic self-check that the old selector is rejected.
 
 Use the feature map under features/ when a task concerns one tool. The full drive is intentionally small enough to run for every feature.
 
 ## Evidence
 
-The helper copies the privacy-safe summary to a sibling evidence directory:
+The live E2E writes its privacy-safe summary directly to:
 
 ~~~text
 <state>.evidence/e2e-summary.json
 ~~~
 
-The summary records tool names, counts, pagination, truncation, and whether the independent oracle self-check passed. It never stores raw LinkedIn rows or the token.
+The helper refuses to overwrite an existing evidence file. The summary records tool names, counts, independent reference pagination, truncation, and verifier status. It never stores raw LinkedIn rows or the token.
 
-A valid proof exercises the MCP endpoint, captures the action and resulting metadata, and verifies pagination behavior when CONNECTIONS is involved. Internal client-only calls are diagnostics, not final proof.
+A valid proof exercises the MCP endpoint, captures the action and resulting metadata, and verifies CONNECTIONS against the separately fetched LinkedIn reference. Internal client-only calls are diagnostics, not final proof.
 
 ## Cleanup
 
@@ -72,7 +72,7 @@ Stop only the PID created by the helper:
 .agents/skills/verify/scripts/verify.sh cleanup "$state"
 ~~~
 
-Cleanup removes the helper's PID, port, and server log state. It leaves <state>.evidence untouched. If a staged run fails, run cleanup before retrying.
+Cleanup removes only the helper's PID, port, and server log state. It leaves <state>.evidence untouched. If a staged run fails, run cleanup before retrying.
 
 ## Helpers
 

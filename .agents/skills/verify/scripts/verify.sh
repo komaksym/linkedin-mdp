@@ -22,22 +22,24 @@ require_token() {
 launch() {
   require_state
   mkdir -p "$state_dir"
-  if [[ -f "$state_dir/server.pid" ]] && kill -0 "$(cat "$state_dir/server.pid")" 2>/dev/null; then
-    echo "verification server already running for state: $state_dir" >&2
-    exit 2
-  fi
+  for owned_file in server.pid port server.log; do
+    if [[ -e "$state_dir/$owned_file" ]]; then
+      echo "verification state already contains $owned_file: $state_dir" >&2
+      exit 2
+    fi
+  done
 
   cd "$repo_root"
   uv sync --extra dev
   local port
-  port="${MCP_PORT:-$(uv run python - <<'PY'
+  port="$(uv run python - <<'PY'
 import socket
 
 with socket.socket() as sock:
     sock.bind(("127.0.0.1", 0))
     print(sock.getsockname()[1])
 PY
-)}"
+)"
   printf '%s\n' "$port" > "$state_dir/port"
 
   MCP_HOST=127.0.0.1 MCP_PORT="$port" uv run linkedin-mdp-mcp >"$state_dir/server.log" 2>&1 &
@@ -45,6 +47,11 @@ PY
   printf '%s\n' "$pid" > "$state_dir/server.pid"
 
   for _ in {1..30}; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      cat "$state_dir/server.log" >&2
+      echo "verification server exited before becoming ready" >&2
+      exit 1
+    fi
     if (echo > /dev/tcp/127.0.0.1/"$port") 2>/dev/null; then
       echo "launched pid=$pid port=$port"
       return
@@ -103,17 +110,21 @@ PY
 
 drive() {
   require_state
-  local port evidence_dir
+  local port evidence_dir evidence_file
   port="$(cat "$state_dir/port")"
   evidence_dir="$state_dir.evidence"
+  evidence_file="$evidence_dir/e2e-summary.json"
   mkdir -p "$evidence_dir"
+  if [[ -e "$evidence_file" ]]; then
+    echo "verification evidence already exists: $evidence_file" >&2
+    exit 2
+  fi
 
   cd "$repo_root"
-  rm -f e2e-summary.json
-  MCP_ENDPOINT="http://127.0.0.1:$port/mcp" uv run python tests/e2e_live.py
-  cp e2e-summary.json "$evidence_dir/e2e-summary.json"
-  rm -f e2e-summary.json
-  echo "evidence=$evidence_dir/e2e-summary.json"
+  MCP_ENDPOINT="http://127.0.0.1:$port/mcp" \
+    E2E_SUMMARY_PATH="$evidence_file" \
+    uv run python tests/e2e_live.py
+  echo "evidence=$evidence_file"
 }
 
 cleanup() {

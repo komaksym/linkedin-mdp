@@ -7,7 +7,8 @@ from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
 
 
 @pytest.mark.asyncio
-async def test_snapshot_uses_first_version_when_later_page_is_older_subset():
+async def test_snapshot_merges_distinct_rows_across_overlapping_versions():
+    """Keep every distinct row observed across paginated snapshot versions."""
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -22,7 +23,10 @@ async def test_snapshot_uses_first_version_when_later_page_is_older_subset():
                     "elements": [
                         {
                             "snapshotDomain": "CONNECTIONS",
-                            "snapshotData": [{"First Name": "Ada"}],
+                            "snapshotData": [
+                                {"First Name": "Ada"},
+                                {"First Name": "Linus"},
+                            ],
                         }
                     ],
                     "paging": {"links": []},
@@ -55,7 +59,11 @@ async def test_snapshot_uses_first_version_when_later_page_is_older_subset():
         client = LinkedInMDPClient("test-token", http=http)
         result = await client.snapshot("CONNECTIONS")
 
-    assert result["rows"] == [{"First Name": "Ada"}, {"First Name": "Grace"}]
+    assert result["rows"] == [
+        {"First Name": "Ada"},
+        {"First Name": "Grace"},
+        {"First Name": "Linus"},
+    ]
     assert result["page_count"] == 2
     assert result["truncated"] is False
     assert len(seen) == 2

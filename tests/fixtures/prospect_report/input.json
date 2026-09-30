@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "target": {
+    "linkedin_url": "https://www.linkedin.com/in/alice-example"
+  },
+  "evidence": [
+    {
+      "id": "e-job-mdp",
+      "delivery": "linkedin_mdp",
+      "record_id": "connections:1",
+      "citation": "linkedin-mdp://CONNECTIONS/row-1",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "observed_at": {"earliest": "2026-09-15T10:00:00Z", "latest": "2026-09-15T10:00:00Z", "precision": "instant"},
+      "published_at": null,
+      "effective_at": {"earliest": "2026-09-01T00:00:00Z", "latest": "2026-09-01T00:00:00Z", "precision": "instant"},
+      "raw": {"Company": "Acme", "Position": "ML Engineer"}
+    },
+    {
+      "id": "e-job-profile",
+      "delivery": "manual_research",
+      "record_id": "profile:alice-example:2026-09-29",
+      "citation": "https://www.linkedin.com/in/alice-example",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "observed_at": {"earliest": "2026-09-29T09:00:00Z", "latest": "2026-09-29T09:00:00Z", "precision": "instant"},
+      "published_at": null,
+      "effective_at": {"earliest": "2026-09-29T09:00:00Z", "latest": "2026-09-29T09:00:00Z", "precision": "instant"},
+      "raw": {"company": "Beta Labs", "title": "Senior ML Engineer", "current": true}
+    },
+    {
+      "id": "e-job-advisor",
+      "delivery": "manual_research",
+      "record_id": "bio:alice-example:advisor",
+      "citation": "https://example.org/team/alice-example",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "observed_at": {"earliest": "2026-09-29T09:05:00Z", "latest": "2026-09-29T09:05:00Z", "precision": "instant"},
+      "published_at": {"earliest": "2026-09-20T00:00:00Z", "latest": "2026-09-20T23:59:59Z", "precision": "day"},
+      "effective_at": {"earliest": "2026-09-20T00:00:00Z", "latest": "2026-09-20T23:59:59Z", "precision": "day"},
+      "raw": {"company": "Open Lab", "title": "Advisor", "current": true}
+    },
+    {
+      "id": "e-email-draft",
+      "delivery": "gmail",
+      "record_id": "draft:1",
+      "citation": "gmail://drafts/1",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "observed_at": {"earliest": "2026-09-28T08:00:00Z", "latest": "2026-09-28T08:00:00Z", "precision": "instant"},
+      "published_at": null,
+      "effective_at": null,
+      "raw": {"state": "draft"}
+    },
+    {
+      "id": "e-email-sent",
+      "delivery": "gmail",
+      "record_id": "message:sent-1",
+      "citation": "gmail://messages/sent-1",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "observed_at": {"earliest": "2026-09-29T11:00:00Z", "latest": "2026-09-29T11:00:00Z", "precision": "instant"},
+      "published_at": null,
+      "effective_at": {"earliest": "2026-09-29T10:30:00Z", "latest": "2026-09-29T10:30:00Z", "precision": "instant"},
+      "raw": {"folder": "SENT", "message_id": "sent-1"}
+    },
+    {
+      "id": "e-linkedin-invite",
+      "delivery": "linkedin_mdp",
+      "record_id": "invitation:1",
+      "citation": "linkedin-mdp://INVITATIONS/1",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "observed_at": {"earliest": "2026-09-29T12:00:00Z", "latest": "2026-09-29T12:00:00Z", "precision": "instant"},
+      "published_at": null,
+      "effective_at": {"earliest": "2026-09-28T15:00:00Z", "latest": "2026-09-28T15:00:00Z", "precision": "instant"},
+      "raw": {"direction": "OUTGOING"}
+    }
+  ],
+  "claims": [
+    {
+      "kind": "employment",
+      "id": "job-mdp",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "role_key": "mdp:connections:1",
+      "company": "Acme",
+      "title": "ML Engineer",
+      "status": "current",
+      "effective_at": {"earliest": "2026-09-01T00:00:00Z", "latest": "2026-09-01T00:00:00Z", "precision": "instant"},
+      "ended_at": null,
+      "evidence_ids": ["e-job-mdp"]
+    },
+    {
+      "kind": "employment",
+      "id": "job-profile",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "role_key": "profile:beta-labs",
+      "company": "Beta Labs",
+      "title": "Senior ML Engineer",
+      "status": "current",
+      "effective_at": {"earliest": "2026-09-29T09:00:00Z", "latest": "2026-09-29T09:00:00Z", "precision": "instant"},
+      "ended_at": null,
+      "evidence_ids": ["e-job-profile"]
+    },
+    {
+      "kind": "employment",
+      "id": "job-advisor",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "role_key": "bio:open-lab-advisor",
+      "company": "Open Lab",
+      "title": "Advisor",
+      "status": "current",
+      "effective_at": {"earliest": "2026-09-20T00:00:00Z", "latest": "2026-09-20T23:59:59Z", "precision": "day"},
+      "ended_at": null,
+      "evidence_ids": ["e-job-advisor"]
+    },
+    {
+      "kind": "message",
+      "id": "email-draft",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "channel": "email",
+      "event": "draft",
+      "occurred_at": null,
+      "evidence_ids": ["e-email-draft"]
+    },
+    {
+      "kind": "message",
+      "id": "email-sent",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "channel": "email",
+      "event": "sent",
+      "occurred_at": {"earliest": "2026-09-29T10:30:00Z", "latest": "2026-09-29T10:30:00Z", "precision": "instant"},
+      "evidence_ids": ["e-email-sent"]
+    },
+    {
+      "kind": "message",
+      "id": "linkedin-invite-sent",
+      "subject_url": "https://www.linkedin.com/in/alice-example",
+      "channel": "linkedin",
+      "event": "sent",
+      "occurred_at": {"earliest": "2026-09-28T15:00:00Z", "latest": "2026-09-28T15:00:00Z", "precision": "instant"},
+      "evidence_ids": ["e-linkedin-invite"]
+    }
+  ],
+  "validations": [
+    {
+      "id": "v-old-expired",
+      "scope": "current_employment",
+      "assessor": "researcher:manual",
+      "assessed_at": "2026-09-10T12:00:00Z",
+      "target_url": "https://www.linkedin.com/in/alice-example",
+      "claim_ids": ["job-mdp"],
+      "evidence_ids": ["e-job-mdp"],
+      "basis": "Historical review of the MDP row before later research.",
+      "verdict": "supported",
+      "applies_from": "2026-09-01T00:00:00Z",
+      "applies_until": "2026-09-15T00:00:00Z"
+    },
+    {
+      "id": "v-active",
+      "scope": "current_employment",
+      "assessor": "researcher:manual",
+      "assessed_at": "2026-09-29T12:00:00Z",
+      "target_url": "https://www.linkedin.com/in/alice-example",
+      "claim_ids": ["job-profile", "job-advisor"],
+      "evidence_ids": ["e-job-profile", "e-job-advisor"],
+      "basis": "Cited profile and organization biography identify the same target and both roles as current.",
+      "verdict": "supported",
+      "applies_from": "2026-09-29T09:00:00Z",
+      "applies_until": null
+    }
+  ]
+}

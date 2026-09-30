@@ -345,12 +345,12 @@
       "assessor": "researcher:manual",
       "basis": "Cited profile and organization biography identify the same target and both roles as current.",
       "claim_ids": [
-        "job-profile",
-        "job-advisor"
+        "job-advisor",
+        "job-profile"
       ],
       "evidence_ids": [
-        "e-job-profile",
-        "e-job-advisor"
+        "e-job-advisor",
+        "e-job-profile"
       ],
       "id": "v-active",
       "scope": "current_employment",

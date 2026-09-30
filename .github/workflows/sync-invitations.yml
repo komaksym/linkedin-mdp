@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   sync-invitations:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.INVITATIONS_RECONCILIATION_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

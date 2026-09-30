@@ -66,7 +66,7 @@ Run `PYTHONPATH=src uv run python scripts/sync_invitations.py` with `LINKEDIN_AC
 
 The command fetches all available INVITATIONS pages before reading Supabase, rejects incomplete or malformed pages, and writes duplicate-safe `LINKEDIN_INVITATION_HISTORY_FOUND` events only for existing prospects. It accepts only `OUTGOING` rows with a usable invitee profile URL and provider `Sent At` value. Each event retains the raw row, original timestamp, canonical URL, `observed_via=INVITATIONS`, and `lifecycle_state=unknown`. A timestamp without timezone uses observation time for `occurred_at` and sets `timestamp_semantics=observed_at`; the provider's local time is kept separately and is never assigned a guessed timezone.
 
-The current `outreach_state` SQL does not yet read this new history event type. Invitation-based candidate exclusion requires a separately approved migration; this command only records evidence.
+The current `outreach_state` SQL does not yet read this new history event type. Invitation-based candidate exclusion requires a separately approved migration; this command only records evidence. The workflow stays disabled unless the repository variable `INVITATIONS_RECONCILIATION_ENABLED` equals `true`. Set it only after the approved eligibility change and live replay verification are complete.
 
 Run `uv run --extra dev python scripts/verify_invitation_sync.py` to regenerate `artifacts/invitation_sync_verification.json` from synthetic HTTP-boundary tests without exporting member data.
 

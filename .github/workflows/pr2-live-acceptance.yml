@@ -1,0 +1,69 @@
+name: PR 2 live acceptance
+
+on:
+  push:
+    branches:
+      - feature/connections-supabase-reconciliation
+    paths:
+      - '.github/workflows/pr2-live-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  live-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: '0.12.18'
+          python-version: '3.12'
+
+      - name: Install production runtime
+        run: uv sync
+
+      - name: Reconcile first pass
+        shell: bash
+        run: |
+          set -o pipefail
+          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run1.json
+
+      - name: Reconcile immediate second pass
+        shell: bash
+        run: |
+          set -o pipefail
+          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run2.json
+
+      - name: Assert reconciliation invariants
+        run: |
+          python - <<'PY'
+          import json
+
+          with open("run1.json", encoding="utf-8") as f:
+              first = json.load(f)
+          with open("run2.json", encoding="utf-8") as f:
+              second = json.load(f)
+
+          assert first["fetched_rows"] > 0
+          assert first["fetched_rows"] == first["matched_rows"] + first["unmatched_rows"]
+          assert first["unique_matched"] <= first["matched_rows"]
+          assert first["inserted"] + first["already_present"] == first["unique_matched"]
+
+          assert second["fetched_rows"] == first["fetched_rows"]
+          assert second["matched_rows"] == first["matched_rows"]
+          assert second["unmatched_rows"] == first["unmatched_rows"]
+          assert second["unique_matched"] == first["unique_matched"]
+          assert second["inserted"] == 0
+          assert second["inserted"] + second["already_present"] == second["unique_matched"]
+
+          print("idempotency_verified=true")
+          PY

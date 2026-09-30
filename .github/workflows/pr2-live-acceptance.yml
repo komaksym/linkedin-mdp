@@ -1,4 +1,4 @@
-name: PR 2 targeted regression
+name: PR 2 final verification
 
 on:
   push:
@@ -9,9 +9,15 @@ permissions:
   contents: read
 
 jobs:
-  regression:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
@@ -20,8 +26,52 @@ jobs:
           version: '0.12.18'
           python-version: '3.12'
 
+      - name: Install production runtime
+        run: uv sync
+
+      - name: Verify production imports
+        run: PYTHONPATH=src .venv/bin/python -c "import httpx, mcp, pydantic; import linkedin_mdp_mcp.connection_sync, linkedin_mdp_mcp.supabase_client"
+
       - name: Install test runtime
         run: uv sync --extra dev
 
-      - name: Run connection reconciliation tests
-        run: uv run pytest tests/test_connection_sync.py -q
+      - name: Compile
+        run: uv run python -m compileall -q src scripts
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Build
+        run: uv build
+
+      - name: Reconcile first live pass
+        shell: bash
+        run: |
+          set -o pipefail
+          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run1.json
+
+      - name: Reconcile immediate second live pass
+        shell: bash
+        run: |
+          set -o pipefail
+          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run2.json
+
+      - name: Assert live invariants
+        run: |
+          python - <<'PY'
+          import json
+
+          with open("run1.json", encoding="utf-8") as f:
+              first = json.load(f)
+          with open("run2.json", encoding="utf-8") as f:
+              second = json.load(f)
+
+          for result in (first, second):
+              assert result["fetched_rows"] > 0
+              assert result["fetched_rows"] == result["matched_rows"] + result["unmatched_rows"]
+              assert result["unique_matched"] <= result["matched_rows"]
+              assert result["inserted"] + result["already_present"] == result["unique_matched"]
+
+          assert second["inserted"] == 0
+          print("idempotency_verified=true")
+          PY

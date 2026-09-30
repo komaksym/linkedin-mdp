@@ -1,19 +1,21 @@
-name: Sync LinkedIn Connections
+name: Private Morning Report
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
 
 permissions:
   contents: read
 
 jobs:
-  sync-connections:
-    if: github.ref == 'refs/heads/main'
+  report:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.GOOGLE_DOC_REPORT_ENABLED == 'true')
     concurrency:
       group: connections-reconciliation
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -25,14 +27,19 @@ jobs:
         with:
           version: '0.12.18'
           python-version: '3.12'
+          enable-cache: false
 
-      - name: Install reconciliation runtime
-        run: uv sync
+      - name: Install reporting runtime
+        run: uv sync --no-dev
 
-      - name: Reconcile CONNECTIONS into Supabase
+      - name: Update private Google Doc
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
           LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
           SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: PYTHONPATH=src .venv/bin/python scripts/sync_connections.py
+          GOOGLE_REPORT_DOCUMENT_ID: ${{ secrets.GOOGLE_REPORT_DOCUMENT_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: PYTHONPATH=src .venv/bin/python scripts/report_connections_doc.py

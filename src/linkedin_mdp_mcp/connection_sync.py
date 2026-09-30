@@ -12,11 +12,15 @@ _LINKEDIN_HOST_RE = re.compile(
 
 
 class ConnectionSyncError(RuntimeError):
+    """Raised when CONNECTIONS reconciliation cannot proceed safely."""
+
     pass
 
 
 @dataclass
 class ConnectionSyncPlan:
+    """Planned duplicate-safe connection events and provider-row counts."""
+
     fetched_rows: int
     matched_rows: int
     unique_matched: int
@@ -26,6 +30,8 @@ class ConnectionSyncPlan:
 
 @dataclass
 class ConnectionSyncSummary:
+    """Aggregate result of one CONNECTIONS reconciliation run."""
+
     fetched_rows: int
     matched_rows: int
     unique_matched: int
@@ -35,6 +41,7 @@ class ConnectionSyncSummary:
 
 
 def normalize_linkedin_url(value: Any) -> str | None:
+    """Canonicalize supported LinkedIn profile URLs for exact identity matching."""
     if not isinstance(value, str):
         return None
 
@@ -56,6 +63,7 @@ def _event_timestamp(
     *,
     observed_at: datetime,
 ) -> tuple[str, str]:
+    """Choose the provider connection date or a timezone-aware observation time."""
     if isinstance(connected_on, str):
         try:
             connected_date = date.fromisoformat(connected_on.strip())
@@ -80,6 +88,7 @@ def plan_connection_events(
     *,
     observed_at: datetime,
 ) -> ConnectionSyncPlan:
+    """Match provider rows to existing prospects and plan one event per identity."""
     events_by_key: dict[str, dict[str, Any]] = {}
     matched_rows = 0
     unmatched_rows = 0
@@ -131,6 +140,7 @@ async def reconcile_connections(
     *,
     observed_at: datetime | None = None,
 ) -> ConnectionSyncSummary:
+    """Fetch a complete snapshot and persist only duplicate-safe connection evidence."""
     snapshot = await linkedin.snapshot("CONNECTIONS", max_pages=50)
     if not isinstance(snapshot, dict):
         raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot must be an object")

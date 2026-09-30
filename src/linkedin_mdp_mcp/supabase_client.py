@@ -8,12 +8,17 @@ import httpx
 
 
 class SupabaseAPIError(RuntimeError):
+    """Raised when the trusted Supabase REST boundary returns an invalid result."""
+
     def __init__(self, status_code: int, message: str):
+        """Store the HTTP status while exposing only a safe error message."""
         self.status_code = status_code
         super().__init__(f"Supabase API error {status_code}: {message}")
 
 
 class SupabaseClient:
+    """Minimal host-pinned REST client for reconciliation reads and event writes."""
+
     def __init__(
         self,
         base_url: str,
@@ -23,6 +28,7 @@ class SupabaseClient:
         timeout_seconds: float = 30.0,
         page_size: int = 1000,
     ) -> None:
+        """Validate trusted connection settings and initialize the HTTP client."""
         parsed = urlparse(base_url.strip())
         if parsed.scheme != "https" or not parsed.netloc:
             raise ValueError("SUPABASE_URL must be an https URL")
@@ -45,6 +51,7 @@ class SupabaseClient:
 
     @classmethod
     def from_env(cls) -> "SupabaseClient":
+        """Build the trusted client from server-side environment variables."""
         base_url = os.getenv("SUPABASE_URL")
         service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         if not base_url:
@@ -54,10 +61,12 @@ class SupabaseClient:
         return cls(base_url, service_role_key)
 
     async def aclose(self) -> None:
+        """Close the internally owned HTTP client."""
         if self._owns_http:
             await self._http.aclose()
 
     async def prospect_ids_by_linkedin_key(self) -> dict[str, str]:
+        """Load every existing prospect ID keyed by canonical LinkedIn URL."""
         result: dict[str, str] = {}
         offset = 0
 
@@ -101,6 +110,7 @@ class SupabaseClient:
         self,
         events: Sequence[dict[str, Any]],
     ) -> int:
+        """Insert connection events while ignoring database-enforced duplicates."""
         if not events:
             return 0
 
@@ -123,6 +133,7 @@ class SupabaseClient:
         headers: dict[str, str] | None = None,
         json: Any = None,
     ) -> httpx.Response:
+        """Send one authenticated request only to the configured Supabase host."""
         url = self._make_url(path)
         request_headers = {
             "apikey": self._key,
@@ -149,6 +160,7 @@ class SupabaseClient:
         return response
 
     def _make_url(self, path: str) -> str:
+        """Build a REST URL without allowing credentials to cross host boundaries."""
         if not path.startswith("/rest/v1/"):
             raise ValueError("Only Supabase /rest/v1/ endpoints are allowed")
         candidate = urljoin(self._base_url, path.lstrip("/"))
@@ -159,6 +171,7 @@ class SupabaseClient:
 
     @staticmethod
     def _json_list(response: httpx.Response) -> list[Any]:
+        """Decode a Supabase response and require a JSON array payload."""
         try:
             payload = response.json()
         except ValueError as exc:

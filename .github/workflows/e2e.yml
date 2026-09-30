@@ -2,7 +2,7 @@ name: Live LinkedIn E2E
 
 on:
   push:
-    branches: [main, feature/connections-supabase-reconciliation]
+    branches: [main]
     paths:
       - '.github/workflows/e2e.yml'
       - 'pyproject.toml'
@@ -53,61 +53,6 @@ jobs:
 
       - name: Install
         run: uv sync --extra dev
-
-      - name: Print recent MDP connections
-        shell: bash
-        run: |
-          uv run python - <<'PY'
-          import asyncio
-          import json
-          from datetime import datetime, date
-          from linkedin_mdp_mcp.client import LinkedInMDPClient
-
-          def parse_date(value):
-              if not isinstance(value, str):
-                  return None
-              value = value.strip()
-              for fmt in ("%d %b %Y", "%Y-%m-%d"):
-                  try:
-                      return datetime.strptime(value, fmt).date()
-                  except ValueError:
-                      pass
-              return None
-
-          async def main():
-              client = LinkedInMDPClient.from_env()
-              try:
-                  snapshot = await client.snapshot("CONNECTIONS", max_pages=50)
-              finally:
-                  await client.aclose()
-
-              seen = set()
-              recent = []
-              for row in snapshot.get("rows", []):
-                  if not isinstance(row, dict):
-                      continue
-                  connected = parse_date(row.get("Connected On"))
-                  if connected is None or not (date(2026, 9, 21) <= connected <= date(2026, 9, 29)):
-                      continue
-                  key = row.get("URL") or (row.get("First Name"), row.get("Last Name"), row.get("Company"), row.get("Connected On"))
-                  if key in seen:
-                      continue
-                  seen.add(key)
-                  recent.append({
-                      "First Name": row.get("First Name"),
-                      "Last Name": row.get("Last Name"),
-                      "Company": row.get("Company"),
-                      "Position": row.get("Position"),
-                      "URL": row.get("URL"),
-                      "Connected On": row.get("Connected On"),
-                  })
-
-              recent.sort(key=lambda x: ((parse_date(x.get("Connected On")) or date.min), x.get("Last Name") or "", x.get("First Name") or ""), reverse=True)
-              print("RECENT_CONNECTIONS=" + json.dumps(recent, ensure_ascii=False, sort_keys=True))
-              print("RECENT_CONNECTIONS_COUNT=" + str(len(recent)))
-
-          asyncio.run(main())
-          PY
 
       - name: Start MCP server
         shell: bash

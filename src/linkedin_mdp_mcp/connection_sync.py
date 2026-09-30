@@ -137,6 +137,10 @@ async def reconcile_connections(
     if snapshot.get("truncated") is not False:
         raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot is truncated")
 
+    page_count = snapshot.get("page_count")
+    if not isinstance(page_count, int) or page_count < 1:
+        raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot did not return a provider page")
+
     rows = snapshot.get("rows")
     if not isinstance(rows, list):
         raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot did not return a rows list")

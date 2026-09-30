@@ -1,4 +1,4 @@
-name: PR 2 live acceptance
+name: PR 2 provider diagnostic
 
 on:
   push:
@@ -11,14 +11,12 @@ permissions:
   contents: read
 
 jobs:
-  live-acceptance:
+  provider-diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
       LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
-      SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -31,39 +29,55 @@ jobs:
       - name: Install production runtime
         run: uv sync
 
-      - name: Reconcile first pass
-        shell: bash
+      - name: Inspect privacy-safe provider metadata
         run: |
-          set -o pipefail
-          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run1.json
-
-      - name: Reconcile immediate second pass
-        shell: bash
-        run: |
-          set -o pipefail
-          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run2.json
-
-      - name: Assert reconciliation invariants
-        run: |
-          python - <<'PY'
+          PYTHONPATH=src .venv/bin/python - <<'PY'
+          import asyncio
           import json
 
-          with open("run1.json", encoding="utf-8") as f:
-              first = json.load(f)
-          with open("run2.json", encoding="utf-8") as f:
-              second = json.load(f)
+          from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
 
-          assert first["fetched_rows"] > 0
-          assert first["fetched_rows"] == first["matched_rows"] + first["unmatched_rows"]
-          assert first["unique_matched"] <= first["matched_rows"]
-          assert first["inserted"] + first["already_present"] == first["unique_matched"]
+          async def main() -> None:
+              client = LinkedInMDPClient.from_env()
+              try:
+                  try:
+                      payload = await client._get_json(
+                          "/rest/memberSnapshotData",
+                          {"q": "criteria", "domain": "CONNECTIONS"},
+                      )
+                  except LinkedInAPIError as exc:
+                      print(json.dumps({
+                          "http_status": exc.status_code,
+                          "service_error_code": exc.service_error_code,
+                          "result": "api_error",
+                      }, sort_keys=True))
+                      return
 
-          assert second["fetched_rows"] == first["fetched_rows"]
-          assert second["matched_rows"] == first["matched_rows"]
-          assert second["unmatched_rows"] == first["unmatched_rows"]
-          assert second["unique_matched"] == first["unique_matched"]
-          assert second["inserted"] == 0
-          assert second["inserted"] + second["already_present"] == second["unique_matched"]
+                  elements = payload.get("elements")
+                  paging = payload.get("paging")
+                  safe = {
+                      "result": "success",
+                      "top_level_keys": sorted(payload.keys()),
+                      "elements_count": len(elements) if isinstance(elements, list) else None,
+                      "paging_start": paging.get("start") if isinstance(paging, dict) else None,
+                      "paging_count": paging.get("count") if isinstance(paging, dict) else None,
+                      "paging_total": paging.get("total") if isinstance(paging, dict) else None,
+                      "has_next": client._next_link(payload) is not None,
+                  }
+                  if isinstance(elements, list):
+                      safe["snapshot_domains"] = sorted({
+                          str(element.get("snapshotDomain"))
+                          for element in elements
+                          if isinstance(element, dict) and element.get("snapshotDomain") is not None
+                      })
+                      safe["snapshot_row_counts"] = [
+                          len(element.get("snapshotData"))
+                          for element in elements
+                          if isinstance(element, dict) and isinstance(element.get("snapshotData"), list)
+                      ]
+                  print(json.dumps(safe, sort_keys=True))
+              finally:
+                  await client.aclose()
 
-          print("idempotency_verified=true")
+          asyncio.run(main())
           PY

@@ -3,7 +3,7 @@ Create a professional raster infographic following these specifications.
 ## Image Specifications
 - Type: technical system infographic
 - Layout: structural-breakdown, exploded system view
-- Style: technical-schematic
+- Style: morandi-midtone technical schematic
 - Aspect ratio: 16:9 landscape
 - Language: English
 - Intended use: GitHub pull request architecture overview
@@ -32,13 +32,14 @@ Add a short subtitle under the main title: "Evidence in → deterministic report
 - Keep relationships visually obvious from source evidence to derived report.
 - Use one optional zoomed detail around RESOLVE(AS_OF) to show three independent outputs: CURRENT EMPLOYMENT, EMAIL, LINKEDIN.
 
-## Technical-schematic style
-- Engineering precision, clean geometry, consistent stroke weights.
-- Blueprint-inspired deep blue or white/light-gray technical canvas with subtle grid.
-- Blue/teal/gray primary palette with amber or cyan highlights.
-- Technical sans-serif typography, strong all-caps labels, restrained annotation density.
-- Avoid decorative illustration, characters, gradients that reduce legibility, or photorealism.
-- Keep ample whitespace and strong hierarchy.
+## Morandi-midtone technical style
+- Engineering precision, clean geometry, consistent stroke weights, with restrained hand-drawn schematic linework.
+- Full-bleed warm mid-tone kraft canvas #EAE0CC with a thin dark #4A4540 rounded border around the full image edge.
+- Inner modules use warm off-white #F5F0E6. Avoid pure white areas and black backgrounds.
+- Body text and connector lines use charcoal-brown #4A4540. The main title uses near-black #2E2A26.
+- Section badges use muted teal #6B9080 with white text. Use terracotta #D4956A only for small emphasis marks, not decorative noise.
+- Keep a strict three-level text hierarchy, strong all-caps labels, ample whitespace, and restrained annotation density.
+- Avoid decorative illustration, characters, gradients that reduce legibility, photorealism, or a blue blueprint palette.
 
 ## Text requirements
 Render these labels exactly and keep them large enough to read in a GitHub PR preview:

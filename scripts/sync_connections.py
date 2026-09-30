@@ -10,6 +10,7 @@ from linkedin_mdp_mcp.supabase_client import SupabaseClient
 
 
 async def main() -> None:
+    """Run one CONNECTIONS reconciliation and print its aggregate summary."""
     linkedin = LinkedInMDPClient.from_env()
     supabase = None
     try:

@@ -151,7 +151,7 @@ async def test_reconcile_connections_exposes_raw_and_unique_matched_grains():
         {"URL": "https://linkedin.com/in/two", "Connected On": "2026-09-21"},
         {"URL": "https://linkedin.com/in/unmatched", "Connected On": "2026-09-22"},
     ]
-    linkedin = FakeLinkedIn({"rows": rows, "truncated": False})
+    linkedin = FakeLinkedIn({"rows": rows, "truncated": False, "page_count": 1})
     supabase = FakeSupabase(
         {
             "https://www.linkedin.com/in/one": "p1",
@@ -192,3 +192,39 @@ async def test_reconcile_connections_fails_closed_on_truncated_snapshot():
 
     assert supabase.lookup_called is False
     assert supabase.written_events is None
+
+
+@pytest.mark.asyncio
+async def test_reconcile_connections_fails_closed_when_no_provider_page_was_retrieved():
+    """Treat a swallowed provider 404 as unavailable data, not an empty snapshot."""
+    linkedin = FakeLinkedIn({"rows": [], "truncated": False, "page_count": 0})
+    supabase = FakeSupabase({}, inserted=0)
+
+    with pytest.raises(ConnectionSyncError, match="provider page"):
+        await reconcile_connections(
+            linkedin,
+            supabase,
+            observed_at=datetime(2026, 9, 24, tzinfo=timezone.utc),
+        )
+
+    assert supabase.lookup_called is False
+    assert supabase.written_events is None
+
+
+@pytest.mark.asyncio
+async def test_reconcile_connections_accepts_successful_empty_snapshot():
+    """Allow a real provider page with zero rows to reconcile as a safe no-op."""
+    linkedin = FakeLinkedIn({"rows": [], "truncated": False, "page_count": 1})
+    supabase = FakeSupabase({}, inserted=0)
+
+    summary = await reconcile_connections(
+        linkedin,
+        supabase,
+        observed_at=datetime(2026, 9, 24, tzinfo=timezone.utc),
+    )
+
+    assert summary.fetched_rows == 0
+    assert summary.unique_matched == 0
+    assert summary.inserted == 0
+    assert supabase.lookup_called is True
+    assert supabase.written_events == []

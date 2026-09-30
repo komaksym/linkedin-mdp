@@ -2,6 +2,8 @@ name: Sync LinkedIn Connections
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
 
 permissions:
   contents: read
@@ -26,10 +28,81 @@ jobs:
       - name: Install reconciliation runtime
         run: uv sync
 
-      - name: Reconcile CONNECTIONS into Supabase
+      - name: Reconcile CONNECTIONS into Supabase and publish report
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
           LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
           SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: PYTHONPATH=src .venv/bin/python scripts/sync_connections.py
+        shell: bash
+        run: |
+          set +e
+          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py >reconciliation-report.json 2>reconciliation-error.log
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report = json.loads(Path("reconciliation-report.json").read_text(encoding="utf-8"))
+          inserted = report["inserted"]
+
+          lines = [
+              "# LinkedIn → Supabase reconciliation",
+              "",
+              "✅ **Complete snapshot reconciled successfully.**",
+              "",
+              "| Metric | Count |",
+              "| --- | ---: |",
+              f"| Fetched rows | {report['fetched_rows']} |",
+              f"| Matched rows | {report['matched_rows']} |",
+              f"| Unmatched rows | {report['unmatched_rows']} |",
+              f"| Unique matched | {report['unique_matched']} |",
+              f"| Newly inserted | {inserted} |",
+              f"| Already present | {report['already_present']} |",
+              "",
+          ]
+
+          if inserted:
+              lines.extend([
+                  f"**Next action:** review the {inserted} newly recorded connection event(s) in Supabase.",
+                  "",
+                  "[Open Supabase](https://supabase.com/dashboard/project/mvgzdcqhdruhjoexbdqp/editor)",
+              ])
+          else:
+              lines.append("**Next action:** none. No new connection evidence was inserted.")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("\n".join(lines) + "\n")
+          PY
+            cat reconciliation-report.json
+            exit 0
+          fi
+
+          {
+            echo "# LinkedIn → Supabase reconciliation"
+            echo
+            if grep -q "LinkedIn API error 404" reconciliation-error.log; then
+              echo "⚠️ **LinkedIn returned an incomplete snapshot. Reconciliation failed closed before Supabase lookup/write.**"
+              echo
+              echo "**Next action:** retry after LinkedIn's snapshot endpoint returns all advertised pages."
+            else
+              echo "❌ **Reconciliation failed.**"
+              echo
+              echo "**Next action:** open the failed step logs for the error details."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          cat reconciliation-error.log
+          exit "$status"
+
+      - name: Upload machine-readable report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-connections-reconciliation-report
+          path: reconciliation-report.json
+          if-no-files-found: error

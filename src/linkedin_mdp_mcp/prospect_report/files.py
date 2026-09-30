@@ -7,8 +7,6 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-
 from pydantic import ValidationError
 
 from .model import Batch, Report, require_aware
@@ -37,18 +35,13 @@ def read_batch(path: Path) -> Batch:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         return Batch.model_validate(payload)
-    except (OSError, json.JSONDecodeError, ValidationError, ValueError, TypeError) as exc:
+    except (OSError, json.JSONDecodeError, ValidationError) as exc:
         raise ProspectReportError("invalid_input") from exc
-
-
-def _json_ready(report: Report) -> dict[str, Any]:
-    """Convert the typed report to JSON-compatible values before canonical encoding."""
-    return report.model_dump(mode="json")
 
 
 def canonical_report_bytes(report: Report) -> bytes:
     """Encode a report with stable key/list ordering and a trailing newline."""
-    text = json.dumps(_json_ready(report), indent=2, sort_keys=True, ensure_ascii=False)
+    text = json.dumps(report.model_dump(mode="json"), indent=2, sort_keys=True, ensure_ascii=False)
     return (text + "\n").encode("utf-8")
 
 

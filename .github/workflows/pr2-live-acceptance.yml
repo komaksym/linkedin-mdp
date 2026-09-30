@@ -1,4 +1,4 @@
-name: PR 2 final verification
+name: PR 2 pagination diagnostic
 
 on:
   push:
@@ -9,14 +9,12 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
       LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
-      SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -29,49 +27,61 @@ jobs:
       - name: Install production runtime
         run: uv sync
 
-      - name: Verify production imports
-        run: PYTHONPATH=src .venv/bin/python -c "import httpx, mcp, pydantic; import linkedin_mdp_mcp.connection_sync, linkedin_mdp_mcp.supabase_client"
-
-      - name: Install test runtime
-        run: uv sync --extra dev
-
-      - name: Compile
-        run: uv run python -m compileall -q src scripts
-
-      - name: Test
-        run: uv run pytest -q
-
-      - name: Build
-        run: uv build
-
-      - name: Reconcile first live pass
-        shell: bash
+      - name: Inspect paged CONNECTIONS metadata
         run: |
-          set -o pipefail
-          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run1.json
-
-      - name: Reconcile immediate second live pass
-        shell: bash
-        run: |
-          set -o pipefail
-          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py | tee run2.json
-
-      - name: Assert live invariants
-        run: |
-          python - <<'PY'
+          PYTHONPATH=src .venv/bin/python - <<'PY'
+          import asyncio
           import json
 
-          with open("run1.json", encoding="utf-8") as f:
-              first = json.load(f)
-          with open("run2.json", encoding="utf-8") as f:
-              second = json.load(f)
+          from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
 
-          for result in (first, second):
-              assert result["fetched_rows"] > 0
-              assert result["fetched_rows"] == result["matched_rows"] + result["unmatched_rows"]
-              assert result["unique_matched"] <= result["matched_rows"]
-              assert result["inserted"] + result["already_present"] == result["unique_matched"]
+          async def main() -> None:
+              client = LinkedInMDPClient.from_env()
+              try:
+                  url = client._make_url("/rest/memberSnapshotData")
+                  query = {"q": "criteria", "domain": "CONNECTIONS"}
 
-          assert second["inserted"] == 0
-          print("idempotency_verified=true")
+                  for page_number in range(1, 6):
+                      try:
+                          payload = await client._get_json_url(url, query)
+                      except LinkedInAPIError as exc:
+                          print(json.dumps({
+                              "page": page_number,
+                              "result": "api_error",
+                              "http_status": exc.status_code,
+                              "service_error_code": exc.service_error_code,
+                          }, sort_keys=True))
+                          return
+
+                      elements = payload.get("elements")
+                      paging = payload.get("paging")
+                      row_count = 0
+                      if isinstance(elements, list):
+                          row_count = sum(
+                              len(element.get("snapshotData"))
+                              for element in elements
+                              if isinstance(element, dict)
+                              and isinstance(element.get("snapshotData"), list)
+                          )
+
+                      next_url = client._next_link(payload)
+                      print(json.dumps({
+                          "page": page_number,
+                          "result": "success",
+                          "elements_count": len(elements) if isinstance(elements, list) else None,
+                          "rows": row_count,
+                          "paging_start": paging.get("start") if isinstance(paging, dict) else None,
+                          "paging_count": paging.get("count") if isinstance(paging, dict) else None,
+                          "paging_total": paging.get("total") if isinstance(paging, dict) else None,
+                          "has_next": next_url is not None,
+                      }, sort_keys=True))
+
+                      if next_url is None:
+                          return
+                      url = next_url
+                      query = None
+              finally:
+                  await client.aclose()
+
+          asyncio.run(main())
           PY

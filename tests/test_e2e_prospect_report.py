@@ -258,3 +258,92 @@ def test_plans_absence_and_overlapping_times_do_not_create_false_state(tmp_path:
     assert channels["email"]["received"]["status"] == "unknown"
     assert channels["linkedin"]["sent"]["status"] == "known"
     assert channels["linkedin"]["sent"]["latest"] is None
+
+def test_time_windows_do_not_establish_facts_before_latest_bound(tmp_path: Path) -> None:
+    """Keep uncertain events, roles and cited evidence unresolved until their latest bound."""
+    payload = _load(FIXTURE)
+    email = next(item for item in payload["claims"] if item["id"] == "email-sent")
+    email["occurred_at"] = {
+        "earliest": "2026-09-30T11:00:00Z",
+        "latest": "2026-09-30T13:00:00Z",
+        "precision": "instant",
+    }
+    profile = next(item for item in payload["claims"] if item["id"] == "job-profile")
+    profile["effective_at"] = {
+        "earliest": "2026-09-30T11:00:00Z",
+        "latest": "2026-09-30T13:00:00Z",
+        "precision": "instant",
+    }
+    input_path = tmp_path / "uncertain-claim.json"
+    input_path.write_text(json.dumps(payload))
+    output = tmp_path / "uncertain-claim-report.json"
+
+    result = _run(input_path, output)
+
+    assert result.returncode == 0, result.stderr
+    report = _load(output)
+    channels = {item["channel"]: item for item in report["channels"]}
+    assert channels["email"]["sent"]["status"] == "unknown"
+    assert report["employment"]["status"] == "needs_review"
+
+    payload = _load(FIXTURE)
+    evidence = next(item for item in payload["evidence"] if item["id"] == "e-job-profile")
+    evidence["effective_at"] = {
+        "earliest": "2026-09-30T11:00:00Z",
+        "latest": "2026-09-30T13:00:00Z",
+        "precision": "instant",
+    }
+    input_path = tmp_path / "uncertain-evidence.json"
+    input_path.write_text(json.dumps(payload))
+    output = tmp_path / "uncertain-evidence-report.json"
+
+    result = _run(input_path, output)
+
+    assert result.returncode == 0, result.stderr
+    report = _load(output)
+    assert report["employment"]["status"] == "needs_review"
+    assert {
+        (item["code"], tuple(item["ids"]))
+        for item in report["review"]
+    } >= {("validation_evidence_future", ("v-active",))}
+
+
+def test_supported_partial_role_requires_research(tmp_path: Path) -> None:
+    """Keep a cited but incomplete role unresolved instead of presenting it as current."""
+    payload = _load(FIXTURE)
+    profile = next(item for item in payload["claims"] if item["id"] == "job-profile")
+    profile["title"] = None
+    input_path = tmp_path / "partial-role.json"
+    input_path.write_text(json.dumps(payload))
+    output = tmp_path / "report.json"
+
+    result = _run(input_path, output)
+
+    assert result.returncode == 0, result.stderr
+    report = _load(output)
+    assert report["employment"]["status"] == "needs_review"
+    assert {
+        (item["code"], tuple(item["ids"]))
+        for item in report["review"]
+    } >= {("validation_incomplete_role", ("v-active",))}
+
+
+def test_nonstandard_linkedin_profile_urls_are_rejected(tmp_path: Path) -> None:
+    """Reject credentials and ports at the identity boundary."""
+    for index, url in enumerate(
+        (
+            "https://linkedin.com:443/in/alice-example",
+            "https://user@linkedin.com/in/alice-example",
+        )
+    ):
+        payload = _load(FIXTURE)
+        payload["target"]["linkedin_url"] = url
+        input_path = tmp_path / f"invalid-url-{index}.json"
+        input_path.write_text(json.dumps(payload))
+        output = tmp_path / f"invalid-url-{index}-report.json"
+
+        result = _run(input_path, output)
+
+        assert result.returncode != 0
+        assert not output.exists()
+

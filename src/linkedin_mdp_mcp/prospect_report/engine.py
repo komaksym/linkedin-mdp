@@ -26,7 +26,7 @@ def _is_current_candidate(claim: EmploymentClaim, as_of: datetime) -> bool:
     """Return whether a claim can describe a current role at the explicit clock."""
     if claim.status != "current":
         return False
-    if claim.effective_at and claim.effective_at.earliest > as_of:
+    if claim.effective_at and claim.effective_at.latest > as_of:
         return False
     if claim.ended_at and claim.ended_at.latest <= as_of:
         return False
@@ -52,6 +52,11 @@ def _validation_applicability(
         return False, "validation_expired"
     if any(item not in candidates for item in validation.claim_ids):
         return False, "validation_claim_not_current"
+    if any(
+        not candidates[item].company or not candidates[item].title
+        for item in validation.claim_ids
+    ):
+        return False, "validation_incomplete_role"
 
     cited_evidence = set(validation.evidence_ids)
     if any(
@@ -65,7 +70,7 @@ def _validation_applicability(
         item = evidence[evidence_id]
         if item.effective_at is None:
             return False, "validation_evidence_undated"
-        if item.effective_at.earliest > as_of:
+        if item.effective_at.latest > as_of:
             return False, "validation_evidence_future"
     return True, None
 
@@ -230,7 +235,7 @@ def _event_fact(
         for item in claims
         if item.channel == channel
         and item.event == event
-        and (item.occurred_at is None or item.occurred_at.earliest <= as_of)
+        and (item.occurred_at is None or item.occurred_at.latest <= as_of)
     ]
     matches.sort(key=lambda item: item.id)
     if not matches:

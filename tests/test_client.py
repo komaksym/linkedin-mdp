@@ -59,6 +59,38 @@ async def test_snapshot_404_is_empty_not_fatal():
 
 
 @pytest.mark.asyncio
+async def test_snapshot_later_page_404_is_fatal():
+    """Reject a 404 after paging starts because the snapshot is incomplete."""
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.params.get("start") == "1":
+            return httpx.Response(404, json={"message": "No data found for this page."})
+        return httpx.Response(
+            200,
+            json={
+                "elements": [{"snapshotData": [{"First Name": "Ada"}]}],
+                "paging": {
+                    "links": [
+                        {
+                            "rel": "next",
+                            "href": "https://api.linkedin.com/rest/memberSnapshotData?q=criteria&domain=CONNECTIONS&start=1",
+                        }
+                    ]
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = LinkedInMDPClient("test-token", http=http)
+        with pytest.raises(LinkedInAPIError, match="404"):
+            await client.snapshot("CONNECTIONS")
+
+    assert len(seen) == 2
+
+
+@pytest.mark.asyncio
 async def test_changelog_uses_expected_finder_and_cursor():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/rest/memberChangeLogs"

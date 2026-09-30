@@ -24,7 +24,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install reconciliation runtime
-        run: uv sync --locked --only-group sync
+        run: uv sync
 
       - name: Reconcile CONNECTIONS into Supabase
         env:

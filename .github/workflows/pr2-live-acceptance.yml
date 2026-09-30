@@ -1,23 +1,17 @@
-name: PR 2 provider diagnostic
+name: PR 2 targeted regression
 
 on:
   push:
     branches:
       - feature/connections-supabase-reconciliation
-    paths:
-      - '.github/workflows/pr2-live-acceptance.yml'
 
 permissions:
   contents: read
 
 jobs:
-  provider-diagnostic:
+  regression:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
-      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
-
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
@@ -26,58 +20,8 @@ jobs:
           version: '0.12.18'
           python-version: '3.12'
 
-      - name: Install production runtime
-        run: uv sync
+      - name: Install test runtime
+        run: uv sync --extra dev
 
-      - name: Inspect privacy-safe provider metadata
-        run: |
-          PYTHONPATH=src .venv/bin/python - <<'PY'
-          import asyncio
-          import json
-
-          from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
-
-          async def main() -> None:
-              client = LinkedInMDPClient.from_env()
-              try:
-                  try:
-                      payload = await client._get_json(
-                          "/rest/memberSnapshotData",
-                          {"q": "criteria", "domain": "CONNECTIONS"},
-                      )
-                  except LinkedInAPIError as exc:
-                      print(json.dumps({
-                          "http_status": exc.status_code,
-                          "service_error_code": exc.service_error_code,
-                          "result": "api_error",
-                      }, sort_keys=True))
-                      return
-
-                  elements = payload.get("elements")
-                  paging = payload.get("paging")
-                  safe = {
-                      "result": "success",
-                      "top_level_keys": sorted(payload.keys()),
-                      "elements_count": len(elements) if isinstance(elements, list) else None,
-                      "paging_start": paging.get("start") if isinstance(paging, dict) else None,
-                      "paging_count": paging.get("count") if isinstance(paging, dict) else None,
-                      "paging_total": paging.get("total") if isinstance(paging, dict) else None,
-                      "has_next": client._next_link(payload) is not None,
-                  }
-                  if isinstance(elements, list):
-                      safe["snapshot_domains"] = sorted({
-                          str(element.get("snapshotDomain"))
-                          for element in elements
-                          if isinstance(element, dict) and element.get("snapshotDomain") is not None
-                      })
-                      safe["snapshot_row_counts"] = [
-                          len(element.get("snapshotData"))
-                          for element in elements
-                          if isinstance(element, dict) and isinstance(element.get("snapshotData"), list)
-                      ]
-                  print(json.dumps(safe, sort_keys=True))
-              finally:
-                  await client.aclose()
-
-          asyncio.run(main())
-          PY
+      - name: Run connection reconciliation tests
+        run: uv run pytest tests/test_connection_sync.py -q

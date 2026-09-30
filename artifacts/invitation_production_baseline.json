@@ -1,0 +1,13 @@
+{
+  "checked_at_local_date": "2026-10-01",
+  "project_ref": "mvgzdcqhdruhjoexbdqp",
+  "query_mode": "read_only",
+  "prospects": 1117,
+  "history_prospects": 2,
+  "history_recognized_as_invited": 0,
+  "history_currently_actionable": 2,
+  "events_unique_constraint": ["source", "external_key"],
+  "live_invitation_reconciliation_run": "not_run",
+  "migration_approval": "pending",
+  "live_credentials_available_locally": false
+}

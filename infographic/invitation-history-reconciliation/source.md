@@ -1,0 +1,2 @@
+LinkedIn invitation history reconciliation
+Complete INVITATIONS snapshot. Outbound rows only. Match existing prospects by canonical LinkedIn profile URL. Store LINKEDIN_INVITATION_HISTORY_FOUND events. Durable key uses profile URL and provider sent timestamp. Replays insert zero duplicate events. Historical invitations prove previously invited; lifecycle is unknown. Event evidence blocks fresh invitations. Incomplete snapshots stop before any write. Provider timezone uncertainty is preserved. Logs show aggregate counts only.

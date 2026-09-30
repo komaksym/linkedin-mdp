@@ -1,0 +1,56 @@
+name: Temporary LinkedIn Changelog Backfill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      CHANGELOG_ARTIFACT_KEY: ${{ secrets.CHANGELOG_ARTIFACT_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: uv sync --extra dev
+      - name: Fetch encrypted changelog history
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run python - <<'PY'
+          import asyncio, json
+          from linkedin_mdp_mcp.client import LinkedInMDPClient
+
+          async def main():
+              client = LinkedInMDPClient.from_env()
+              try:
+                  result = await client.changelog(start_time=0, count=50, max_pages=50)
+              finally:
+                  await client.aclose()
+              with open("changelog.json", "w", encoding="utf-8") as f:
+                  json.dump(result, f, ensure_ascii=False)
+              print("event_count=", len(result["events"]))
+              print("page_count=", result["page_count"])
+              print("truncated=", result["truncated"])
+              print("next_start_time=", result["next_start_time"])
+
+          asyncio.run(main())
+          PY
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in changelog.json -out changelog.json.enc -pass env:CHANGELOG_ARTIFACT_KEY
+          rm -f changelog.json
+      - name: Upload encrypted changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-changelog-backfill
+          path: changelog.json.enc
+          retention-days: 1
+          if-no-files-found: error

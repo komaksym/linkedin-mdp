@@ -156,8 +156,8 @@ class LinkedInMDPClient:
             try:
                 payload = await self._get_json_url(url, query)
             except LinkedInAPIError as exc:
-                if empty_on_404 and exc.status_code == 404:
-                    return PageResult(elements=[], page_count=pages, truncated=False)
+                if empty_on_404 and exc.status_code == 404 and pages == 0:
+                    return PageResult(elements=[], page_count=0, truncated=False)
                 raise
 
             current = payload.get("elements", [])

@@ -18,7 +18,11 @@ class FrozenModel(BaseModel):
 def normalize_linkedin_profile_url(value: str) -> str:
     """Return the canonical LinkedIn `/in/<slug>` identity key or reject the URL."""
     parsed = urlparse(value.strip())
-    if parsed.scheme != "https" or parsed.hostname not in {"linkedin.com", "www.linkedin.com"}:
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname not in {"linkedin.com", "www.linkedin.com"}
+        or parsed.netloc.casefold() not in {"linkedin.com", "www.linkedin.com"}
+    ):
         raise ValueError("invalid LinkedIn profile URL")
     if parsed.query or parsed.fragment or parsed.params:
         raise ValueError("LinkedIn profile URL must not contain query or fragment")

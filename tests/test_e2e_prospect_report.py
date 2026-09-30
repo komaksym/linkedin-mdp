@@ -204,6 +204,19 @@ def test_invalid_identity_or_duplicate_id_fails_without_leaking_or_partial_write
     assert output.read_text() == "existing-safe-artifact\n"
 
 
+def test_invalid_utf8_fails_with_stable_input_error(tmp_path: Path) -> None:
+    """Reject undecodable input through the public CLI without a traceback or output."""
+    input_path = tmp_path / "invalid-utf8.json"
+    input_path.write_bytes(b"\xff\xfe\xfd")
+    output = tmp_path / "report.json"
+
+    result = _run(input_path, output)
+
+    assert result.returncode == 2
+    assert result.stderr == "error: invalid_input\n"
+    assert not output.exists()
+
+
 def test_plans_absence_and_overlapping_times_do_not_create_false_state(tmp_path: Path) -> None:
     """Planned actions stay non-events, absence stays unknown, and overlap has no fake latest."""
     payload = _load(FIXTURE)

@@ -35,7 +35,7 @@ def read_batch(path: Path) -> Batch:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         return Batch.model_validate(payload)
-    except (OSError, json.JSONDecodeError, ValidationError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValidationError) as exc:
         raise ProspectReportError("invalid_input") from exc
 
 

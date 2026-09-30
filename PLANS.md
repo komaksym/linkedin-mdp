@@ -2,7 +2,7 @@
 
 ## Prospect evidence resolution
 
-Summary: add one local evidence-file-to-report feature that preserves observations, reconciles current employment per field and derives message state per channel. No live storage, transport API, send capability or infrastructure changes. Ground the existing transport/event boundaries, compare a pure resolver with a stateful case service, then implement the chosen caller contract with executable acceptance checks written first.
+Summary: add one local evidence-file-to-report feature that preserves observations, reconciles current employment from atomic, cited role claims and derives message state per channel. No live storage, transport API, send capability or infrastructure changes. Ground the existing transport/event boundaries, compare a pure resolver with a stateful case service, then implement the chosen caller contract with executable acceptance checks written first.
 
 Milestones: Ground; Sketch and cross-judge at least two structural alternatives; Agree by default; Implement; Scrap only if repeated deviations invalidate the design. The design artifact records accepted deviations before the next implementation unit.
 

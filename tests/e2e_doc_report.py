@@ -176,7 +176,9 @@ async def pipeline(service: Services) -> tuple[int, str]:
         provider_error = RuntimeError("private provider configuration") if service.scenario == "provider_config" else None
         database_error = RuntimeError("private database configuration") if service.scenario == "database_config" else None
         close_error = RuntimeError("private cleanup failure") if service.scenario == "close_failure" else None
-        with patch.object(cli, "GoogleDocPublisher", return_value=google), patch.object(cli.LinkedInMDPClient, "from_env", return_value=linkedin, side_effect=provider_error), patch.object(cli.SupabaseClient, "from_env", return_value=supabase, side_effect=database_error), patch.object(google, "aclose", side_effect=close_error), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        linkedin_close_error = RuntimeError("private provider cleanup") if service.scenario == "provider_close" else None
+        database_close_error = RuntimeError("private database cleanup") if service.scenario == "database_close" else None
+        with patch.object(cli, "GoogleDocPublisher", return_value=google), patch.object(cli.LinkedInMDPClient, "from_env", return_value=linkedin, side_effect=provider_error), patch.object(cli.SupabaseClient, "from_env", return_value=supabase, side_effect=database_error), patch.object(google, "aclose", side_effect=close_error), patch.object(linkedin, "aclose", side_effect=linkedin_close_error), patch.object(supabase, "aclose", side_effect=database_close_error), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = await cli.run()
         return code, stdout.getvalue() + stderr.getvalue()
 
@@ -193,6 +195,7 @@ async def run_scenarios() -> dict[str, str]:
         "markers": (2, None), "rich": (2, None), "nested": (2, None),
         "provider_config": (1, "BLOCKED"), "database_config": (1, "FAILED"), "close_failure": (2, "COMPLETE"),
         "empty_region": (0, "COMPLETE"),
+        "provider_close": (1, "COMPLETE"), "database_close": (1, "COMPLETE"),
     }
     with patch.dict(os.environ, ENV):
         for name, (expected_code, status) in cases.items():
@@ -201,6 +204,8 @@ async def run_scenarios() -> dict[str, str]:
             assert code == expected_code, name
             assert "private" not in output and "Traceback" not in output, name
             assert "Fetched" not in output and "Inserted" not in output, name
+            if name in {"provider_close", "database_close", "close_failure"}:
+                assert "morning report: cleanup unavailable\n" in output, name
             if status is None:
                 assert service.writes == 0 and service.text == TEXT, name
             else:

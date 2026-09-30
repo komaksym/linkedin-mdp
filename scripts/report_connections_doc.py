@@ -72,11 +72,13 @@ async def run() -> int:
             try:
                 await supabase.aclose()
             except Exception:
+                print("morning report: cleanup unavailable", file=sys.stderr)
                 code = 1
         if linkedin is not None:
             try:
                 await linkedin.aclose()
             except Exception:
+                print("morning report: cleanup unavailable", file=sys.stderr)
                 code = 1
         try:
             await publisher.aclose()

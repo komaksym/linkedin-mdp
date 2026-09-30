@@ -144,8 +144,6 @@ async def reconcile_connections(
     rows = snapshot.get("rows")
     if not isinstance(rows, list):
         raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot did not return a rows list")
-    if not rows:
-        raise ConnectionSyncError("LinkedIn CONNECTIONS snapshot returned no rows")
 
     observed_at = observed_at or datetime.now(timezone.utc)
     prospects_by_key = await supabase.prospect_ids_by_linkedin_key()

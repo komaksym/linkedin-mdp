@@ -212,17 +212,19 @@ async def test_reconcile_connections_fails_closed_when_no_provider_page_was_retr
 
 
 @pytest.mark.asyncio
-async def test_reconcile_connections_fails_closed_on_empty_snapshot():
-    """Reject a zero-row CONNECTIONS snapshot instead of accepting provider flakiness."""
+async def test_reconcile_connections_accepts_successful_empty_snapshot():
+    """Allow a complete provider page with zero rows to reconcile as a safe no-op."""
     linkedin = FakeLinkedIn({"rows": [], "truncated": False, "page_count": 1})
     supabase = FakeSupabase({}, inserted=0)
 
-    with pytest.raises(ConnectionSyncError, match="no rows"):
-        await reconcile_connections(
-            linkedin,
-            supabase,
-            observed_at=datetime(2026, 9, 24, tzinfo=timezone.utc),
-        )
+    summary = await reconcile_connections(
+        linkedin,
+        supabase,
+        observed_at=datetime(2026, 9, 24, tzinfo=timezone.utc),
+    )
 
-    assert supabase.lookup_called is False
-    assert supabase.written_events is None
+    assert summary.fetched_rows == 0
+    assert summary.unique_matched == 0
+    assert summary.inserted == 0
+    assert supabase.lookup_called is True
+    assert supabase.written_events == []

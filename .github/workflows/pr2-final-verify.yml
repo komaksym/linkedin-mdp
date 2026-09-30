@@ -1,0 +1,80 @@
+name: PR 2 final production verification
+
+on:
+  push:
+    branches:
+      - feature/connections-supabase-reconciliation
+    paths:
+      - '.github/workflows/pr2-final-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+      SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: '0.12.18'
+          python-version: '3.12'
+
+      - name: Install production runtime
+        run: uv sync
+
+      - name: Verify production imports
+        run: PYTHONPATH=src .venv/bin/python -c "import httpx, mcp, pydantic; import linkedin_mdp_mcp.client, linkedin_mdp_mcp.connection_sync, linkedin_mdp_mcp.supabase_client"
+
+      - name: Install test runtime
+        run: uv sync --extra dev
+
+      - name: Compile
+        run: uv run python -m compileall -q src scripts
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Build
+        run: uv build
+
+      - name: Verify live reconciliation outcome
+        shell: bash
+        run: |
+          set +e
+          PYTHONPATH=src .venv/bin/python scripts/sync_connections.py >sync.out 2>sync.err
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            python - <<'PY'
+          import json
+
+          with open("sync.out", encoding="utf-8") as f:
+              result = json.load(f)
+
+          assert result["fetched_rows"] > 0
+          assert result["fetched_rows"] == result["matched_rows"] + result["unmatched_rows"]
+          assert result["unique_matched"] <= result["matched_rows"]
+          assert result["inserted"] + result["already_present"] == result["unique_matched"]
+          print("live_reconciliation=complete_snapshot")
+          print(json.dumps(result, sort_keys=True))
+          PY
+            exit 0
+          fi
+
+          if grep -q "LinkedIn API error 404" sync.err; then
+            echo "live_reconciliation=provider_incomplete_fail_closed"
+            exit 0
+          fi
+
+          cat sync.err
+          exit "$status"

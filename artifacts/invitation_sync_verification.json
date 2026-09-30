@@ -1,0 +1,8 @@
+{
+  "contains_provider_data": false,
+  "exit_code": 0,
+  "passed": 20,
+  "status": "passed",
+  "suite": "tests/test_invitation_sync_e2e.py",
+  "surface": "LinkedInMDPClient and SupabaseClient over httpx.MockTransport"
+}

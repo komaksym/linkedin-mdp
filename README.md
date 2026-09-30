@@ -60,6 +60,16 @@ The schema lives in `supabase/migrations/`.
 
 The operational tables have RLS enabled and are not exposed to `anon` or `authenticated`; the RPC is intended for trusted server-side access via `service_role`.
 
+## Manual invitation history reconciliation
+
+Run `PYTHONPATH=src uv run python scripts/sync_invitations.py` with `LINKEDIN_ACCESS_TOKEN`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY` set. The main-only `Sync LinkedIn Invitations` GitHub workflow runs the same command on demand. Both surfaces print aggregate counts only; command failures print a fixed error without provider rows or tracebacks.
+
+The command fetches all available INVITATIONS pages before reading Supabase, rejects incomplete or malformed pages, and writes duplicate-safe `LINKEDIN_INVITATION_HISTORY_FOUND` events only for existing prospects. It accepts only `OUTGOING` rows with a usable invitee profile URL and provider `Sent At` value. Each event retains the raw row, original timestamp, canonical URL, `observed_via=INVITATIONS`, and `lifecycle_state=unknown`. A timestamp without timezone uses observation time for `occurred_at` and sets `timestamp_semantics=observed_at`; the provider's local time is kept separately and is never assigned a guessed timezone.
+
+The current `outreach_state` SQL does not yet read this new history event type. Invitation-based candidate exclusion requires a separately approved migration; this command only records evidence. The workflow stays disabled unless the repository variable `INVITATIONS_RECONCILIATION_ENABLED` equals `true`. Set it only after the approved eligibility change and live replay verification are complete.
+
+Run `uv run --extra dev python scripts/verify_invitation_sync.py` to regenerate `artifacts/invitation_sync_verification.json` from synthetic HTTP-boundary tests without exporting member data.
+
 ## Run locally
 
 Using `uv`:
@@ -122,7 +132,7 @@ The tests verify endpoint/finder shapes, pagination, read-only MCP annotations, 
 
 ## Deliberately not included in v0.1
 
-- automatic LinkedIn-to-Supabase synchronization
+- scheduled LinkedIn-to-Supabase synchronization
 - Clay enrichment ingestion
 - LGM campaign/API/webhook ingestion
 - OAuth refresh/token storage

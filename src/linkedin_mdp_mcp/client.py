@@ -71,13 +71,16 @@ class LinkedInMDPClient:
             {"q": "memberAndApplication"},
         )
 
-    async def snapshot(self, domain: str, *, max_pages: int = 10) -> dict[str, Any]:
-        """Return all exact-distinct rows observed across paginated snapshot elements."""
+    async def snapshot(
+        self, domain: str, *, max_pages: int = 10, strict_elements: bool = False
+    ) -> dict[str, Any]:
+        """Return distinct rows, optionally rejecting missing or malformed page elements."""
         page = await self._get_paged(
             "/rest/memberSnapshotData",
             {"q": "criteria", "domain": domain},
             max_pages=max_pages,
             empty_on_404=True,
+            strict_elements=strict_elements,
         )
 
         rows: list[Any] = []
@@ -123,10 +126,10 @@ class LinkedInMDPClient:
             max_pages=max_pages,
             empty_on_404=False,
         )
-        processed = [
-            e.get("processedAt")
+        processed: list[int] = [
+            value
             for e in page.elements
-            if isinstance(e, dict) and isinstance(e.get("processedAt"), int)
+            if isinstance(e, dict) and isinstance(value := e.get("processedAt"), int)
         ]
         return {
             "api_version": self.api_version,
@@ -143,7 +146,13 @@ class LinkedInMDPClient:
         *,
         max_pages: int,
         empty_on_404: bool,
+        strict_elements: bool = False,
     ) -> PageResult:
+        """Collect pages, report truncation, and optionally reject malformed metadata.
+
+        Only an initial 404 may become an empty result when requested. Later
+        failures propagate so reconciliation cannot consume partial evidence.
+        """
         if not 1 <= max_pages <= 50:
             raise ValueError("max_pages must be between 1 and 50")
 
@@ -161,11 +170,13 @@ class LinkedInMDPClient:
                 raise
 
             current = payload.get("elements", [])
+            if strict_elements and ("elements" not in payload or not isinstance(current, list)):
+                raise LinkedInAPIError(200, "snapshot page has malformed elements")
             if isinstance(current, list):
                 elements.extend(current)
             pages += 1
 
-            next_url = self._next_link(payload)
+            next_url = self._next_link(payload, strict=strict_elements)
             if next_url is None:
                 return PageResult(elements=elements, page_count=pages, truncated=False)
             url = next_url
@@ -230,21 +241,46 @@ class LinkedInMDPClient:
         if parsed.scheme != "https" or parsed.netloc != self._allowed_host:
             raise LinkedInAPIError(0, "refusing to send LinkedIn credentials to an unexpected host")
 
-    def _next_link(self, payload: dict[str, Any]) -> str | None:
+    def _next_link(self, payload: dict[str, Any], *, strict: bool = False) -> str | None:
+        """Resolve the next provider page, rejecting broken metadata in strict mode."""
         paging = payload.get("paging")
         if not isinstance(paging, dict):
+            if strict:
+                raise LinkedInAPIError(200, "snapshot page has malformed paging")
             return None
         links = paging.get("links")
         if not isinstance(links, list):
+            if strict:
+                raise LinkedInAPIError(200, "snapshot page has malformed paging links")
             return None
 
+        start = paging.get("start")
+        count = paging.get("count")
+        total = paging.get("total")
+        position = (start, count, total)
+        if strict and any(value is not None for value in position):
+            if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in position):
+                raise LinkedInAPIError(200, "snapshot page has malformed paging counts")
+
         for link in links:
-            if not isinstance(link, dict) or str(link.get("rel", "")).lower() != "next":
+            if not isinstance(link, dict):
+                if strict:
+                    raise LinkedInAPIError(200, "snapshot page has malformed paging link")
+                continue
+            relation = link.get("rel")
+            if strict and (not isinstance(relation, str) or not relation.strip()):
+                raise LinkedInAPIError(200, "snapshot page has malformed link relation")
+            if str(relation or "").lower() != "next":
                 continue
             href = link.get("href")
             if not isinstance(href, str) or not href:
+                if strict:
+                    raise LinkedInAPIError(200, "snapshot page has malformed next link")
                 continue
             candidate = urljoin(LINKEDIN_BASE_URL, href)
             self._assert_linkedin_url(candidate)
             return candidate
+        if strict and isinstance(start, int) and isinstance(count, int) and isinstance(total, int):
+            if start + count < total:
+                raise LinkedInAPIError(200, "snapshot page is missing a continuation link")
         return None

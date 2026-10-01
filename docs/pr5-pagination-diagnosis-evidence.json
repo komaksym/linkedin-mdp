@@ -1,0 +1,47 @@
+{
+  "pr_head_sha": "041be40f5141d9cfe1a9851945a337c09a9ebe01",
+  "read_only_live_run": "https://github.com/komaksym/linkedin-mdp/actions/runs/36909210750",
+  "records": [
+    {
+      "connections_domain": true,
+      "count": null,
+      "finder_criteria": true,
+      "has_next": true,
+      "http_status": 200,
+      "paging_count": 10,
+      "paging_start": 0,
+      "request_index": 1,
+      "rest_snapshot_route": true,
+      "start": null,
+      "v2_snapshot_route": false
+    },
+    {
+      "connections_domain": true,
+      "count": 10,
+      "finder_criteria": true,
+      "has_next": true,
+      "http_status": 200,
+      "paging_count": 10,
+      "paging_start": 1,
+      "request_index": 2,
+      "rest_snapshot_route": true,
+      "start": 1,
+      "v2_snapshot_route": false
+    },
+    {
+      "connections_domain": true,
+      "count": 10,
+      "finder_criteria": true,
+      "http_status": 404,
+      "known_no_data_message": true,
+      "request_index": 3,
+      "rest_snapshot_route": true,
+      "start": 2,
+      "v2_snapshot_route": false
+    }
+  ],
+  "root_cause": "Snapshot end-of-data HTTP 404 is treated as an incomplete fetch after successful pages.",
+  "regression_commit": "9570e3a",
+  "official_documentation": "https://learn.microsoft.com/en-us/linkedin/dma/member-data-portability/shared/member-snapshot-api",
+  "proposed_fix": "For snapshots only, after at least one valid successful page, classify an exact known no-data response as successful exhaustion and retain accumulated elements. Continue failing on other errors."
+}

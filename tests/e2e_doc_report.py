@@ -137,6 +137,20 @@ class Services:
     def linkedin(self, req: httpx.Request) -> httpx.Response:
         """Serve full, empty, later-page missing, or truncated CONNECTIONS snapshots."""
         self.provider_calls += 1
+        exhaustion = {
+            "exhaustion_domain": "No data found for this domain and memberId.",
+            "exhaustion_member": "No data found for this memberId.",
+            "exhaustion_domain_no_period": "No data found for this domain and memberId",
+            "exhaustion_member_no_period": "No data found for this memberId",
+        }
+        if self.scenario in exhaustion and self.provider_calls == 3:
+            return httpx.Response(404, json={"message": exhaustion[self.scenario]})
+        if self.scenario == "first_page_exhaustion":
+            return httpx.Response(404, json={"message": exhaustion["exhaustion_domain"]})
+        if self.provider_calls == 2 and self.scenario == "late_404_extra_text":
+            return httpx.Response(404, json={"message": exhaustion["exhaustion_domain"] + " More details"})
+        if self.provider_calls == 2 and self.scenario == "late_500_known_message":
+            return httpx.Response(500, json={"message": exhaustion["exhaustion_domain"]})
         if self.scenario == "provider_404" or (self.scenario == "later_404" and self.provider_calls == 2):
             return httpx.Response(404, json={"message": "private provider response"})
         rows = [] if self.scenario == "empty" else [
@@ -146,7 +160,12 @@ class Services:
             {"URL": "https://www.linkedin.com/in/private-unmatched"},
         ]
         payload: dict[str, Any] = {"elements": [{"snapshotData": rows}]}
-        if self.scenario in {"later_404", "truncated"}:
+        if self.scenario in exhaustion and self.provider_calls == 2:
+            payload["elements"] = [{"snapshotData": [
+                {"URL": "https://www.linkedin.com/in/private-one"},
+                {"URL": "https://www.linkedin.com/in/private-two", "Name": "private-person-two"},
+            ]}]
+        if self.scenario in {"later_404", "truncated", "late_404_extra_text", "late_500_known_message", *exhaustion}:
             payload["paging"] = {"links": [{"rel": "next", "href": "/rest/memberSnapshotData?start=next"}]}
         return httpx.Response(200, json=payload)
 
@@ -189,6 +208,10 @@ async def run_scenarios() -> dict[str, str]:
     cases = {
         "complete": (0, "COMPLETE"), "empty": (0, "COMPLETE"), "duplicates": (0, "COMPLETE"),
         "provider_404": (1, "BLOCKED"), "later_404": (1, "BLOCKED"), "truncated": (1, "BLOCKED"),
+        "first_page_exhaustion": (1, "BLOCKED"),
+        "late_404_extra_text": (1, "BLOCKED"), "late_500_known_message": (1, "BLOCKED"),
+        "exhaustion_domain": (0, "COMPLETE"), "exhaustion_member": (0, "COMPLETE"),
+        "exhaustion_domain_no_period": (0, "COMPLETE"), "exhaustion_member_no_period": (0, "COMPLETE"),
         "supabase_timeout": (1, "FAILED"), "invalid_count": (1, "FAILED"), "conflict": (0, "COMPLETE"),
         "conflict_twice": (2, None), "docs_bad_request": (2, None), "oauth": (2, None),
         "sharing": (2, None), "published": (2, None), "redirect": (2, None),
@@ -201,7 +224,7 @@ async def run_scenarios() -> dict[str, str]:
         for name, (expected_code, status) in cases.items():
             service = Services(name)
             code, output = await pipeline(service)
-            assert code == expected_code, name
+            assert code == expected_code, f"{name}: expected exit {expected_code}, got {code}; output={output.strip()!r}"
             assert "private" not in output and "Traceback" not in output, name
             assert "Fetched" not in output and "Inserted" not in output, name
             if name in {"provider_close", "database_close", "close_failure"}:
@@ -223,6 +246,10 @@ async def run_scenarios() -> dict[str, str]:
                 assert len(service.events) == 2
                 for line in ("Fetched rows: 4", "Matched rows: 3", "Unique matched connections: 2", "Unmatched rows: 1", "Newly inserted events: 1", "Already-present events: 1"):
                     assert line in service.text
+            if name.startswith("exhaustion_"):
+                assert service.provider_calls == 3 and len(service.events) == 2, name
+                for line in ("Fetched rows: 5", "Matched rows: 4", "Unique matched connections: 2", "Unmatched rows: 1", "Newly inserted events: 1", "Already-present events: 1"):
+                    assert line in service.text, name
             if name == "empty":
                 assert service.text.count(": 0") == 6
             if name == "duplicates":

@@ -46,6 +46,8 @@ Privacy and marker checks happen before reconciliation and again before each Doc
 
 ## Reading the result
 
+LinkedIn can end snapshot pagination with a specific no-data HTTP 404 after successful pages. The client treats that exact response as normal completion and retains all fetched rows. A first-page 404, an unrecognized later-page 404, or a page limit still blocks reconciliation. The advertised pagination total is not a reliable stopping rule.
+
 | Status | Meaning | Action |
 | --- | --- | --- |
 | COMPLETE | The full provider snapshot reconciled; all six counts are available. | Review unmatched rows if nonzero. Counts alone do not identify individual prospects. |

@@ -1,0 +1,24 @@
+{
+  "pr_url": "https://github.com/komaksym/linkedin-mdp/pull/5",
+  "pr_head_sha": "041be40f5141d9cfe1a9851945a337c09a9ebe01",
+  "workflow_branch": "validation/pr5-live-report-20261001",
+  "live_runs": [
+    "https://github.com/komaksym/linkedin-mdp/actions/runs/36907604007",
+    "https://github.com/komaksym/linkedin-mdp/actions/runs/36907962898"
+  ],
+  "public_messages": [
+    "morning report: blocked",
+    "Process completed with exit code 1.",
+    "provider diagnostic: HTTP 404"
+  ],
+  "doc_readback": {
+    "status": "BLOCKED",
+    "run_timestamp": "2026-10-01 20:35:37 CEST",
+    "unknown_count_lines": 6,
+    "notes_outside_markers_unchanged": true,
+    "revision_changed": true,
+    "owner_only_permissions": true
+  },
+  "complete_reconciliation_verified": false,
+  "finding": "LinkedIn snapshot pagination raised HTTP 404; reporter published BLOCKED with unknown counts and exited 1."
+}

@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: 041be40f5141d9cfe1a9851945a337c09a9ebe01
+          ref: caa951c5421dad1790576c6fa1ce0b4fa37889d9
           persist-credentials: false
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
@@ -34,85 +34,83 @@ jobs:
       - name: Install reporting runtime
         run: uv sync --no-dev
 
-      - name: Trace pagination without database or document writes
+      - name: Update private Google Doc
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
           LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+          SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_REPORT_DOCUMENT_ID: ${{ secrets.GOOGLE_REPORT_DOCUMENT_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
         run: |
-          PYTHONPATH=src .venv/bin/python - <<'PY'
-          """Trace the real snapshot failure while exposing only technical request flags."""
+          PYTHONPATH=src:. .venv/bin/python - <<'PY'
+          """Run the exact reporter and verify private publication without exposing report data."""
           
           import asyncio
-          import json
-          from urllib.parse import parse_qs, urlparse
+          import sys
           
-          from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
+          from linkedin_mdp_mcp.google_doc_report import GoogleDocPublisher, render_report
+          from scripts import report_connections_doc as cli
           
           
-          class TraceClient(LinkedInMDPClient):
-              """Record HTTP outcomes without changing the real pagination algorithm."""
+          def document_text(value):
+              """Extract native Docs text runs in order without persisting private content."""
+              if isinstance(value, list):
+                  return "".join(document_text(item) for item in value)
+              if not isinstance(value, dict):
+                  return ""
+              if "textRun" in value:
+                  return value["textRun"].get("content", "")
+              return "".join(document_text(item) for item in value.values())
           
-              records = None
           
-              async def _get_json_url(self, url, params):
-                  """Run the original request and emit an allowlisted boundary record."""
-                  query = parse_qs(urlparse(url).query) if params is None else params
-                  def value(key):
-                      """Normalize one known query parameter without printing unknown values."""
-                      item = query.get(key)
-                      return item[0] if isinstance(item, list) and item else item
-                  path = urlparse(url).path
-                  record = {
-                      "request_index": len(self.records) + 1,
-                      "rest_snapshot_route": path == "/rest/memberSnapshotData",
-                      "v2_snapshot_route": path == "/v2/memberSnapshotData",
-                      "finder_criteria": value("q") == "criteria",
-                      "connections_domain": value("domain") == "CONNECTIONS",
-                      "start": int(value("start")) if str(value("start")).isdigit() else None,
-                      "count": int(value("count")) if str(value("count")).isdigit() else None,
-                  }
-                  try:
-                      payload = await super()._get_json_url(url, params)
-                  except LinkedInAPIError as error:
-                      record["http_status"] = error.status_code
-                      record["known_no_data_message"] = "No data found for this domain and memberId" in str(error)
-                      record["exact_known_no_data_message"] = str(error) in {
-                          "LinkedIn API error 404: No data found for this domain and memberId.",
-                          "LinkedIn API error 404: No data found for this memberId.",
-                          "LinkedIn API error 404: No data found for this domain and memberId",
-                          "LinkedIn API error 404: No data found for this memberId",
-                      }
-                      self.records.append(record)
-                      print("pagination trace: " + json.dumps(record, sort_keys=True))
-                      raise
-                  record["http_status"] = 200
-                  paging = payload.get("paging", {})
-                  next_url = self._next_link(payload)
-                  record["has_next"] = next_url is not None
-                  record["paging_start"] = paging.get("start") if isinstance(paging.get("start"), int) else None
-                  record["paging_count"] = paging.get("count") if isinstance(paging.get("count"), int) else None
-                  self.records.append(record)
-                  print("pagination trace: " + json.dumps(record, sort_keys=True))
-                  return payload
+          def sections(document):
+              """Split the single managed report region and surrounding operator notes."""
+              text = document_text(document.get("tabs") or document.get("body"))
+              before, region = text.split("[BEGIN AUTOMATED REPORT]\n", 1)
+              report, after = region.split("[END AUTOMATED REPORT]", 1)
+              return before, report, after
+          
+          
+          class VerifiedPublisher(GoogleDocPublisher):
+              """Use the real publisher and compare its generated report to private readback."""
+          
+              verified = False
+          
+              async def publish(self, result):
+                  """Require exact status/count text, preserved notes, and a new private revision."""
+                  token = await self._access_token()
+                  before = await self._preflight_and_read(token)
+                  await super().publish(result)
+                  after = await self._preflight_and_read(token)
+                  old_prefix, _, old_suffix = sections(before)
+                  prefix, actual, suffix = sections(after)
+                  if actual != render_report(result) or (prefix, suffix) != (old_prefix, old_suffix):
+                      raise RuntimeError("report verification unavailable")
+                  if before["revisionId"] == after["revisionId"]:
+                      raise RuntimeError("report verification unavailable")
+                  VerifiedPublisher.verified = result.status == "COMPLETE"
           
           
           async def main():
-              """Reproduce the exact failure with the unchanged production client."""
-              client = TraceClient.from_env()
-              client.records = []
-              try:
-                  await client.snapshot("CONNECTIONS")
-                  print("pagination verdict: failure not reproduced")
-              except LinkedInAPIError as error:
-                  reproduced = error.status_code == 404 and len(client.records) > 1 and client.records[0]["http_status"] == 200
-                  print("pagination verdict: reproduced later-page HTTP 404" if reproduced else "pagination verdict: different failure")
-              except Exception:
-                  print("pagination verdict: diagnostic unavailable")
-              finally:
-                  await client.aclose()
+              """Exit successfully only after real reconciliation and exact private readback."""
+              cli.GoogleDocPublisher = VerifiedPublisher
+              code = await cli.run()
+              if code == 0 and VerifiedPublisher.verified:
+                  print("live report e2e: status, counts, notes and private access verified")
+                  return 0
+              print("live report e2e: complete publication not verified", file=sys.stderr)
+              return code or 1
           
           
           if __name__ == "__main__":
-              asyncio.run(main())
+              try:
+                  code = asyncio.run(main())
+              except Exception:
+                  print("live report e2e: verification unavailable", file=sys.stderr)
+                  code = 2
+              raise SystemExit(code)
           
           PY

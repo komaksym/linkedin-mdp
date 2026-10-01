@@ -1,0 +1,20 @@
+{
+  "pr_url": "https://github.com/komaksym/linkedin-mdp/pull/5",
+  "fix_commit": "caa951c5421dad1790576c6fa1ce0b4fa37889d9",
+  "live_run": "https://github.com/komaksym/linkedin-mdp/actions/runs/36927715805",
+  "ci_run": "https://github.com/komaksym/linkedin-mdp/actions/runs/36927654627",
+  "outcome": "COMPLETE",
+  "fixed_public_messages": [
+    "morning report: complete",
+    "live report e2e: status, counts, notes and private access verified"
+  ],
+  "run_timestamp": "2026-10-01 23:18:12 CEST",
+  "counts_match_reconciliation_result": true,
+  "notes_preserved": true,
+  "owner_only_permissions": true,
+  "synthetic_e2e_scenarios": 32,
+  "existing_tests_passed": 19,
+  "regression_before": "expected exit 0, got 1; output='morning report: blocked'",
+  "regression_after": "all 32 scenarios passed",
+  "implementation_commits_added_to_pr": 1
+}

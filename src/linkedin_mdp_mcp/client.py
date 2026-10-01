@@ -11,11 +11,17 @@ import httpx
 
 LINKEDIN_BASE_URL = "https://api.linkedin.com"
 DEFAULT_API_VERSION = "202312"
+SNAPSHOT_EXHAUSTED_MESSAGES = frozenset({
+    "No data found for this domain and memberId",
+    "No data found for this memberId",
+})
 
 
 class LinkedInAPIError(RuntimeError):
     def __init__(self, status_code: int, message: str, service_error_code: int | None = None):
+        """Keep the provider message available while preserving the public error text."""
         self.status_code = status_code
+        self.message = message
         self.service_error_code = service_error_code
         super().__init__(f"LinkedIn API error {status_code}: {message}")
 
@@ -124,9 +130,9 @@ class LinkedInMDPClient:
             empty_on_404=False,
         )
         processed = [
-            e.get("processedAt")
+            value
             for e in page.elements
-            if isinstance(e, dict) and isinstance(e.get("processedAt"), int)
+            if isinstance(e, dict) and isinstance(value := e.get("processedAt"), int)
         ]
         return {
             "api_version": self.api_version,
@@ -158,6 +164,13 @@ class LinkedInMDPClient:
             except LinkedInAPIError as exc:
                 if empty_on_404 and exc.status_code == 404 and pages == 0:
                     return PageResult(elements=[], page_count=0, truncated=False)
+                if (
+                    empty_on_404
+                    and exc.status_code == 404
+                    and pages > 0
+                    and exc.message.removesuffix(".") in SNAPSHOT_EXHAUSTED_MESSAGES
+                ):
+                    return PageResult(elements=elements, page_count=pages, truncated=False)
                 raise
 
             current = payload.get("elements", [])

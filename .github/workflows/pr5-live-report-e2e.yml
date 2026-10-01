@@ -34,46 +34,79 @@ jobs:
       - name: Install reporting runtime
         run: uv sync --no-dev
 
-      - name: Update private Google Doc
-        env:
-          LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
-          LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
-          SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_REPORT_DOCUMENT_ID: ${{ secrets.GOOGLE_REPORT_DOCUMENT_ID }}
-          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
-          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
-          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
-        run: PYTHONPATH=src .venv/bin/python scripts/report_connections_doc.py
-
-      - name: Diagnose provider snapshot without database writes
-        if: failure()
+      - name: Trace pagination without database or document writes
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
           LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
         run: |
           PYTHONPATH=src .venv/bin/python - <<'PY'
+          """Trace the real snapshot failure while exposing only technical request flags."""
+          
           import asyncio
+          import json
+          from urllib.parse import parse_qs, urlparse
+          
           from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
-
-          async def diagnose():
-              """Report only a provider HTTP status or snapshot completeness."""
-              client = None
+          
+          
+          class TraceClient(LinkedInMDPClient):
+              """Record HTTP outcomes without changing the real pagination algorithm."""
+          
+              records = None
+          
+              async def _get_json_url(self, url, params):
+                  """Run the original request and emit an allowlisted boundary record."""
+                  query = parse_qs(urlparse(url).query) if params is None else params
+                  def value(key):
+                      """Normalize one known query parameter without printing unknown values."""
+                      item = query.get(key)
+                      return item[0] if isinstance(item, list) and item else item
+                  path = urlparse(url).path
+                  record = {
+                      "request_index": len(self.records) + 1,
+                      "rest_snapshot_route": path == "/rest/memberSnapshotData",
+                      "v2_snapshot_route": path == "/v2/memberSnapshotData",
+                      "finder_criteria": value("q") == "criteria",
+                      "connections_domain": value("domain") == "CONNECTIONS",
+                      "start": int(value("start")) if str(value("start")).isdigit() else None,
+                      "count": int(value("count")) if str(value("count")).isdigit() else None,
+                  }
+                  try:
+                      payload = await super()._get_json_url(url, params)
+                  except LinkedInAPIError as error:
+                      record["http_status"] = error.status_code
+                      record["known_no_data_message"] = "No data found for this domain and memberId" in str(error)
+                      self.records.append(record)
+                      print("pagination trace: " + json.dumps(record, sort_keys=True))
+                      raise
+                  record["http_status"] = 200
+                  paging = payload.get("paging", {})
+                  next_url = self._next_link(payload)
+                  record["has_next"] = next_url is not None
+                  record["paging_start"] = paging.get("start") if isinstance(paging.get("start"), int) else None
+                  record["paging_count"] = paging.get("count") if isinstance(paging.get("count"), int) else None
+                  self.records.append(record)
+                  print("pagination trace: " + json.dumps(record, sort_keys=True))
+                  return payload
+          
+          
+          async def main():
+              """Reproduce the exact failure with the unchanged production client."""
+              client = TraceClient.from_env()
+              client.records = []
               try:
-                  client = LinkedInMDPClient.from_env()
-                  snapshot = await client.snapshot("CONNECTIONS")
-                  complete = snapshot.get("truncated") is False and snapshot.get("page_count", 0) >= 1
-                  print("provider diagnostic: complete snapshot" if complete else "provider diagnostic: incomplete snapshot")
+                  await client.snapshot("CONNECTIONS")
+                  print("pagination verdict: failure not reproduced")
               except LinkedInAPIError as error:
-                  print(f"provider diagnostic: HTTP {error.status_code}")
+                  reproduced = error.status_code == 404 and len(client.records) > 1 and client.records[0]["http_status"] == 200
+                  print("pagination verdict: reproduced later-page HTTP 404" if reproduced else "pagination verdict: different failure")
               except Exception:
-                  print("provider diagnostic: request unavailable")
+                  print("pagination verdict: diagnostic unavailable")
               finally:
-                  if client is not None:
-                      try:
-                          await client.aclose()
-                      except Exception:
-                          print("provider diagnostic: cleanup unavailable")
-
-          asyncio.run(diagnose())
+                  await client.aclose()
+          
+          
+          if __name__ == "__main__":
+              asyncio.run(main())
+          
           PY

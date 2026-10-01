@@ -1,0 +1,47 @@
+name: PR 5 one-time live report E2E
+
+on:
+  push:
+    branches:
+      - validation/pr5-live-report-20261001
+    paths:
+      - '.github/workflows/pr5-live-report-e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    if: github.ref == 'refs/heads/validation/pr5-live-report-20261001'
+    concurrency:
+      group: connections-reconciliation
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 041be40f5141d9cfe1a9851945a337c09a9ebe01
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: '0.12.18'
+          python-version: '3.12'
+          enable-cache: false
+
+      - name: Install reporting runtime
+        run: uv sync --no-dev
+
+      - name: Update private Google Doc
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+          LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+          SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_REPORT_DOCUMENT_ID: ${{ secrets.GOOGLE_REPORT_DOCUMENT_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: PYTHONPATH=src .venv/bin/python scripts/report_connections_doc.py

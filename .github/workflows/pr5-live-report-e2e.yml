@@ -45,3 +45,35 @@ jobs:
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
           GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
         run: PYTHONPATH=src .venv/bin/python scripts/report_connections_doc.py
+
+      - name: Diagnose provider snapshot without database writes
+        if: failure()
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+          LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+        run: |
+          PYTHONPATH=src .venv/bin/python - <<'PY'
+          import asyncio
+          from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
+
+          async def diagnose():
+              """Report only a provider HTTP status or snapshot completeness."""
+              client = None
+              try:
+                  client = LinkedInMDPClient.from_env()
+                  snapshot = await client.snapshot("CONNECTIONS")
+                  complete = snapshot.get("truncated") is False and snapshot.get("page_count", 0) >= 1
+                  print("provider diagnostic: complete snapshot" if complete else "provider diagnostic: incomplete snapshot")
+              except LinkedInAPIError as error:
+                  print(f"provider diagnostic: HTTP {error.status_code}")
+              except Exception:
+                  print("provider diagnostic: request unavailable")
+              finally:
+                  if client is not None:
+                      try:
+                          await client.aclose()
+                      except Exception:
+                          print("provider diagnostic: cleanup unavailable")
+
+          asyncio.run(diagnose())
+          PY

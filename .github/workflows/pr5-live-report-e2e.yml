@@ -76,6 +76,12 @@ jobs:
                   except LinkedInAPIError as error:
                       record["http_status"] = error.status_code
                       record["known_no_data_message"] = "No data found for this domain and memberId" in str(error)
+                      record["exact_known_no_data_message"] = str(error) in {
+                          "LinkedIn API error 404: No data found for this domain and memberId.",
+                          "LinkedIn API error 404: No data found for this memberId.",
+                          "LinkedIn API error 404: No data found for this domain and memberId",
+                          "LinkedIn API error 404: No data found for this memberId",
+                      }
                       self.records.append(record)
                       print("pagination trace: " + json.dumps(record, sort_keys=True))
                       raise

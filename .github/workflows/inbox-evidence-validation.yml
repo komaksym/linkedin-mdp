@@ -51,6 +51,8 @@ jobs:
                   if signature not in signatures and len(signatures) < 10:
                       signatures.add(signature)
                       print("[inbox-check] rejected timestamp shape:", signature)
+                      print("[inbox-check] explicit UTC suffix:", isinstance(value, str) and value.endswith(" UTC"))
+                      print("[inbox-check] explicit GMT suffix:", isinstance(value, str) and value.endswith(" GMT"))
               return result
           sync._timestamp = timestamp
           original = live.reconcile_inbox

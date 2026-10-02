@@ -1,0 +1,118 @@
+name: One-time action report source audit
+
+on:
+  push:
+    branches: [validation/action-report-source-audit-20261002]
+    paths: [.github/workflows/action-report-source-audit.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: connections-reconciliation
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c29b06ffaa850514d8c8347f407cb1514d4f3ae9
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: '0.12.18'
+          python-version: '3.12'
+          enable-cache: false
+      - name: Install runtime
+        run: uv sync --no-dev
+      - name: Inspect report source contracts without writes
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+          LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+          SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          PYTHONPATH=src .venv/bin/python - <<'PY'
+          import asyncio
+          import re
+          from linkedin_mdp_mcp.client import LinkedInMDPClient
+          from linkedin_mdp_mcp.supabase_client import SupabaseClient
+          KNOWN_FIELDS = {
+              "name", "firstname", "lastname", "fullname", "company", "companyname",
+              "companydomain", "companyid", "country", "location", "industry", "title",
+              "position", "pvf", "ispvf", "qualified", "targeting", "suppressed",
+              "optout", "donotcontact", "connectioncount", "connectionscount",
+              "mutualconnections", "hasphoto", "photourl", "profilephoto",
+              "activity", "lastactivity", "lastactiveat", "sourceurl",
+              "checkedat", "retrievedat", "research", "opener", "personalization",
+          }
+          def fields(value, found, depth=0):
+              if depth > 8:
+                  return
+              if isinstance(value, dict):
+                  for key, item in value.items():
+                      label = re.sub(r"[^a-z]", "", key.lower())
+                      if label in KNOWN_FIELDS:
+                          found.add(label)
+                      fields(item, found, depth + 1)
+              elif isinstance(value, list):
+                  for item in value:
+                      fields(item, found, depth + 1)
+          async def audit():
+              linkedin = LinkedInMDPClient.from_env()
+              store = SupabaseClient.from_env()
+              try:
+                  for domain in ("CONNECTIONS", "INVITATIONS", "INBOX"):
+                      snapshot = await linkedin.snapshot(domain, max_pages=50, strict_elements=True)
+                      if snapshot.get("truncated") is not False or snapshot.get("page_count", 0) < 1:
+                          raise RuntimeError("source unavailable")
+                      print("source complete:", domain)
+                  seen = set()
+                  found = set()
+                  for offset in range(0, 10000, 250):
+                      response = await store._request("GET", "/rest/v1/prospects", params={
+                          "select": "id,attributes", "order": "id.asc",
+                          "limit": "250", "offset": str(offset),
+                      })
+                      rows = store._json_list(response)
+                      for row in rows:
+                          if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not isinstance(row.get("attributes"), dict):
+                              raise RuntimeError("invalid prospect schema")
+                          if row["id"] in seen:
+                              raise RuntimeError("duplicate prospect")
+                          seen.add(row["id"])
+                          fields(row["attributes"], found)
+                      if len(rows) < 250:
+                          break
+                  else:
+                      raise RuntimeError("audit row cap reached")
+                  print("prospects present:", bool(seen))
+                  for label in sorted(KNOWN_FIELDS):
+                      print("supported attribute field " + label + ":", label in found)
+                  response = await store._request("GET", "/rest/v1/events", params={
+                      "select": "payload", "event_type": "eq.CLAY_ENRICHED",
+                      "order": "id.asc", "limit": "250",
+                  })
+                  research = store._json_list(response)
+                  research_fields = set()
+                  for row in research:
+                      if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
+                          raise RuntimeError("invalid research schema")
+                      fields(row["payload"], research_fields)
+                  print("saved Clay evidence present:", bool(research))
+                  for label in sorted(KNOWN_FIELDS):
+                      print("supported Clay field " + label + ":", label in research_fields)
+              finally:
+                  try:
+                      await linkedin.aclose()
+                  finally:
+                      await store.aclose()
+          try:
+              asyncio.run(audit())
+          except Exception:
+              print("action report source audit: failed")
+              raise SystemExit(1)
+          print("action report source audit: complete; no writes")
+          PY

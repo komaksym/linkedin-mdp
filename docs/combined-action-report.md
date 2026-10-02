@@ -11,3 +11,5 @@ For the existing restricted Google Doc, run `scripts/publish_combined_action_rep
 The synthetic end-to-end harness in `tests/e2e_combined_action_report.py` exercises the offline CLI and mocked Google HTTP boundary. Its evidence artifact records fixed scenario verdicts only. It does not prove fresh live source acquisition or live OAuth delivery.
 
 Repeat the synthetic proof from the repository root with `PYTHONPATH=.:src uv run --extra dev python tests/e2e_combined_action_report.py`. It writes `artifacts/combined-action-report-e2e-evidence.json` after the CLI and simulated Google publication checks.
+
+Failed offline writes clean up only files and the output directory created by that invocation. Foreign files are preserved. Research-queue profiles require canonical LinkedIn profile URLs; explicit null identities remain unknown, while omitted profiles are rejected. The synthetic E2E artifact covers these failure and retry boundaries.

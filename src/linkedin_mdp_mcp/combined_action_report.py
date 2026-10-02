@@ -190,7 +190,8 @@ def combine_action_reports(invitations: Any, dm_actions: Any) -> dict[str, Any]:
         lines.extend(_invitation_lines(row, rank))
     lines.extend(("Invitation research queue", ""))
     for row in research:
-        lines.append(f"{_show(row.get('profile_url'))} | evidence: {_show(row.get('evidence_id'))} | source: {_show(row.get('source_ref'))} | event day: {_show(row.get('event_date'))} | reason: {_string(row.get('reason'))}")
+        profile = "unknown" if "profile_url" in row and row["profile_url"] is None else _profile(row)
+        lines.append(f"{profile} | evidence: {_show(row.get('evidence_id'))} | source: {_show(row.get('source_ref'))} | event day: {_show(row.get('event_date'))} | reason: {_string(row.get('reason'))}")
     lines.append("")
     lines.extend(("Invitation exclusions and withheld candidates", ""))
     for label, counts in (("Excluded", excluded_counts), ("Withheld", withheld_counts)):

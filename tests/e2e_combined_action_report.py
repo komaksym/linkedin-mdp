@@ -27,6 +27,7 @@ from linkedin_mdp_mcp.google_doc_report import (
     GoogleDocPublisher,
     GoogleReportError,
 )
+from scripts import build_combined_action_report as build_cli
 from scripts import publish_combined_action_report as publish_cli
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -206,6 +207,21 @@ def run_matrix() -> dict[str, str]:
     bad["invitations"][0]["name"] = "Unsafe [BEGIN AUTOMATED REPORT] value"
     cli_case(bad, dm(), expect_ok=False)
     verdicts["source_marker_injection_refused"] = "passed"
+    research = deepcopy(invitation())
+    research["status"] = "withheld_current_employer_assignments"
+    research["invitations"] = []
+    research["research_queue"] = [{"profile_url": None, "reason": "identity_unknown", "source_ref": "invitations.rows[0]"}]
+    out, _ = cli_case(research, dm(), expect_ok=True)
+    check("research_null_identity_unknown", "unknown | evidence:" in (out / "combined-action-report.txt").read_text(encoding="utf-8"))
+    for url in ("https://attacker.example/person", "https://www.linkedin.com/in/synthetic-person?tracking=1", "https://www.linkedin.com/company/synthetic"):
+        research["research_queue"][0]["profile_url"] = url
+        out, _ = cli_case(research, dm(), expect_ok=False)
+        assert not out.exists()
+    verdicts["research_invalid_profile_refused"] = "passed"
+    research["research_queue"][0].pop("profile_url")
+    cli_case(research, dm(), expect_ok=False)
+    verdicts["research_missing_profile_refused"] = "passed"
+    verdicts.update(write_failure_scenarios())
 
     service = asyncio.run(google_case("Prepared 🧭 report\n"))
     check("google_utf16_marker_preservation", service.writes == 1 and service.text == TEXT.replace("old\n", "Prepared 🧭 report\n"))
@@ -249,6 +265,48 @@ def run_matrix() -> dict[str, str]:
                 raise AssertionError(name)
         asyncio.run(refused())
         check("text_refuses_" + name, requests == 0)
+    return verdicts
+
+
+def write_failure_scenarios(scenarios: tuple[str, ...] = ("first_write_partial", "second_write_partial", "second_write_collision")) -> dict[str, str]:
+    """Fail each real output write and preserve files not created by this invocation."""
+    verdicts: dict[str, str] = {}
+    original = build_cli._write
+    for scenario in scenarios:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            private_file(base / "invitations.json", invitation())
+            private_file(base / "dm.json", dm())
+            output = base / "output"
+            sibling = base / "owner-notes.txt"
+            sibling.write_text("owner notes", encoding="utf-8")
+            calls = 0
+
+            def fail(path: Path, content: str, scenario: str = scenario) -> tuple[int, int]:
+                """Exercise real partial-file Unicode failure or an exclusive-create collision."""
+                nonlocal calls
+                calls += 1
+                if calls == (1 if scenario == "first_write_partial" else 2):
+                    if scenario == "second_write_collision":
+                        path.write_text("foreign output", encoding="utf-8")
+                        path.chmod(0o600)
+                        return original(path, content)
+                    else:
+                        return original(path, "\ud800")
+                else:
+                    return original(path, content)
+
+            stdout = io.StringIO()
+            with patch.object(build_cli, "_write", side_effect=fail), contextlib.redirect_stdout(stdout):
+                code = build_cli.main(["--invitations", str(base / "invitations.json"), "--dm-actions", str(base / "dm.json"), "--output-dir", str(output)])
+            assert code == 1 and stdout.getvalue() == "combined action report: failed\n"
+            assert sibling.read_text(encoding="utf-8") == "owner notes"
+            if scenario == "second_write_collision":
+                assert (output / "combined-action-report.txt").read_text(encoding="utf-8") == "foreign output"
+                assert not (output / "combined-action-report.json").exists()
+            else:
+                assert not output.exists(), scenario
+            verdicts[scenario] = "passed"
     return verdicts
 
 

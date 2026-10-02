@@ -228,3 +228,5 @@ PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppress
 PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.
 
 Parent combined-report integration: rebased unpublished branch onto PR13 attachment-only correction82456ae. Actual producer fixtures, offlineCLI and simulatedGoogle HTTP38scenario proof passed;24fulltests,13filemypy,scopedRuff,source/wheel builds anddiffcheck passed. Inspectedraster included. Direct harness requires declareddevdependencies andPYTHONPATH=.:src; documented command. No liveOAuth/Docdelivery or source freshness claim.
+
+PR15 follow-up reproduces failed first/second private writes, preserves foreign exclusive-create collision files, and rejects invalid or omitted research profile URLs while allowing explicit null.44synthetic scenarios and required checks recorded below after parent verification. No live publication.

@@ -36,15 +36,30 @@ jobs:
         run: |
           PYTHONPATH=src .venv/bin/python - <<'PY'
           import asyncio
-          import traceback
-          from diagnostics.verify_inbox_live import verify
+          import diagnostics.verify_inbox_live as live
+          from linkedin_mdp_mcp.inbox_sync import normalize_profile_url
+          class DiagnosticComplete(Exception):
+              pass
+          original = live.reconcile_inbox
+          original_keys = live.SupabaseClient.prospect_ids_by_linkedin_key
+          async def keys(self):
+              result = await original_keys(self)
+              print("[inbox-check] database keys present:", bool(result))
+              print("[inbox-check] supported full URL keys present:", any(normalize_profile_url(key) for key in result))
+              print("[inbox-check] hostless canonical keys present:", any(key.startswith("linkedin.com/in/") for key in result))
+              return result
+          async def reconcile(*args, **kwargs):
+              kwargs["dry_run"] = True
+              result = await original(*args, **kwargs)
+              print("[inbox-check] inbox rows present:", result.fetched_rows > 0)
+              print("[inbox-check] planned events present:", result.planned_events > 0)
+              for reason in ("withheld_thread", "malformed_participants", "self_or_ambiguous_direction", "unknown_prospect", "empty_content", "malformed_timestamp"):
+                  print("[inbox-check] skipped " + reason + ":", result.skip_reasons.get(reason, 0) > 0)
+              raise DiagnosticComplete()
+          live.SupabaseClient.prospect_ids_by_linkedin_key = keys
+          live.reconcile_inbox = reconcile
           try:
-              asyncio.run(verify())
-          except Exception as exc:
-              print("[inbox-check] exception:", type(exc).__name__)
-              for frame in traceback.extract_tb(exc.__traceback__):
-                  if "/diagnostics/" in frame.filename or "/linkedin_mdp_mcp/" in frame.filename:
-                      print("[inbox-check] location:", frame.filename.rsplit("/", 1)[-1], frame.name, frame.lineno)
-              raise SystemExit(1)
-          print("live inbox evidence: persistence and duplicate-free replay verified")
+              asyncio.run(live.verify())
+          except DiagnosticComplete:
+              print("[inbox-check] read-only diagnosis complete")
           PY

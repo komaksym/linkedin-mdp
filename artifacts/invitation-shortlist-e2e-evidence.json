@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 93,
+  "scenario_count": 105,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -28,7 +28,12 @@
     "creation timestamp or qualification spoof changed ranking or membership",
     "private Markdown omitted creation-time provenance",
     "UTC conversion overflow aborted timestamp enrichment",
-    "private Markdown omitted the creation-time prospect ID"
+    "private Markdown omitted the creation-time prospect ID",
+    "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
+    "explicit concurrent employers could not charge each historical company once",
+    "complete employer sets could not admit qualified-company membership",
+    "conflicting canonical sets lacked an explicit conflict reason",
+    "secondary employer at capacity admitted an invitation"
   ],
-  "artifact_digest": "bb8b4a7e5be15af6e97f89b43c691a1a6af787ec7424d298ce125ac8a2c21562"
+  "artifact_digest": "7c44c1a96c9668dae9aaf8d8343ab66c89aa47e984b86bace368371f3a40cd9e"
 }

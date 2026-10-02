@@ -193,3 +193,20 @@ PR10 fresh review audit corrections: six invalid canonical-alias scenarios and o
 PR10 Unicode repair verification before publication: 84 scenarios plus wrapper, 22 full-suite checks, strict scoped Ruff, 12-file mypy and builds passed before the usage pause. Pending diff inspected on resume; no source behavior changed since that validation. Separate synthetic CLI proof and independent review requested. Fixed fresh CodeRabbit wording finding by spacing adjacent counts in the matrix record.
 
 PR12 review correction: two UTC conversion overflow boundaries and the Markdown prospect-ID provenance assertion failed before the fix (3 failed, 90 passed). The correction catches overflow as invalid_timestamp and prints the prospect ID beside the source pointer. All 93 E2E scenarios, the full 22-test suite, scoped Ruff, 9-file default source mypy and source/wheel builds pass. Independent read-only review found no actionable issue.
+
+## Present employer sets
+
+Summary: preserve single-employer input while charging each exact historical profile once per explicitly present company, without inventing a primary employer.
+
+- [x] Ground/sketch: prior private design compares singular selection with conservative set accounting; owner selected cited assignments sets.
+- [x] Blocking first steps: isolate branch and integrate PR10 metadata-hash correction; no live state.
+- [x] Independent workstreams: n/a coupled parsing/counting/audit contract has one exclusive owner.
+- [x] Shared mutable state: new checkout; private bindings stay outside Git.
+- [x] Smallest safe decomposition: one module with source-boundary parsing and existing planner consumers.
+- [x] Red-first matrix: seven new cases failed on the singleton implementation; secondary-cap selection also failed before correction. Nine set cases plus inherited checks pass.
+- [x] Implement and validate: 105 E2E cases, 22 full-suite tests, scoped Ruff, 10-file mypy, source/wheel builds and diffcheck. Synthetic private CLI and existing combined renderer accept flat multi-employer rows.
+- [ ] Parent owns review, infographic/publication and commits; no deployment.
+
+Contract clarification: incomplete sets retain a research reason but are omitted from resolved assignment audits; original qualification retains their positive evidence. This keeps the established unresolved-alias exclusion contract and narrows the preliminary private design's partial-positive audit proposal.
+
+Parent inspected present-set parser, aliases/conflicts, all-history per-company counts and all-employer selection capacity.105E2E/22fulltests/scopedlint/10-filetypes/sourcewheelpassed. Existing combinedrenderer compatibility and private synthetic CLI verified by writer. Inspected native raster copied; private realpeoplebindings excluded. No liveproposaleligibility/publication/storagewrite.

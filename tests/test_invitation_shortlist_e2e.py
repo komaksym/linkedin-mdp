@@ -60,6 +60,10 @@ def test_invitation_shortlist_e2e() -> None:
             "UTC conversion overflow aborted timestamp enrichment",
             "private Markdown omitted the creation-time prospect ID",
             "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
+            "explicit concurrent employers could not charge each historical company once",
+            "complete employer sets could not admit qualified-company membership",
+            "conflicting canonical sets lacked an explicit conflict reason",
+            "secondary employer at capacity admitted an invitation",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

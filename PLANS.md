@@ -228,3 +228,5 @@ PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppress
 PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.
 
 Parent inspected staged acquisition, durable matched DM evidence, stable escaped-JSON hashing and post-commit CLI outcome handling. Technical raster infographic inspected and copied. Final parent verification follows integration with PR13 current wrapper commit; no live collection/persistence/schedule claim.
+
+Parent final verification after rebasing unpublished branch onto PR13head36a785d passed54synthetic HTTP/event-store E2E,24fullpytest,scopedRuff,13-filemypy,source/wheelbuilds and dependency byte equality. Unrelated generated inbox artifact restored to HEAD. No live API/DB call, workflow activation or outreach send.

@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import httpx
 
-from linkedin_mdp_mcp.client import LinkedInMDPClient
+from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
 from linkedin_mdp_mcp.supabase_client import SupabaseClient
 
 HERE = Path(__file__).resolve().parent
@@ -26,6 +26,14 @@ collector = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collector)
 
 MARKER = "PRIVATE_SYNTHETIC_MEMBER_ONLY_493829"
+EXPECTED_FAILURES: dict[str, tuple[type[Exception], str]] = {
+    "unavailable": (RuntimeError, "private source collection failed"),
+    "malformed": (LinkedInAPIError, "LinkedIn API error 0: malformed snapshot element"),
+    "domain": (LinkedInAPIError, "LinkedIn API error 0: snapshot element domain does not match request"),
+    "truncated": (RuntimeError, "private source collection failed"),
+    "escaped_domain": (LinkedInAPIError, "LinkedIn API error 0: snapshot next link changed request scope"),
+    **{case: (RuntimeError, "private source collection failed") for case in ("db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate")},
+}
 
 async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, list[str]]:
     """Run production HTTP clients with complete or deliberately defective pages."""
@@ -75,17 +83,23 @@ async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, l
     linkedin = LinkedInMDPClient("synthetic", http=httpx.AsyncClient(transport=httpx.MockTransport(provider)))
     store = SupabaseClient("https://db.example.test", "synthetic", http=httpx.AsyncClient(transport=httpx.MockTransport(database)))
     try:
-        bundle = await collector.collect_sources(linkedin, store, page_size=1, max_db_pages=2, snapshot_pages=1)
+        try:
+            bundle = await collector.collect_sources(linkedin, store, page_size=1, max_db_pages=2, snapshot_pages=1)
+        except Exception as error:  # noqa: BLE001
+            expected = EXPECTED_FAILURES.get(case)
+            if expected is None or type(error) is not expected[0] or str(error) != expected[1]:
+                raise RuntimeError("unexpected synthetic collection failure") from None
+            return None, methods
         collector.encrypt_bundle(bundle, cert, target)
         return target.read_bytes(), methods
-    except Exception:  # noqa: BLE001
-        return None, methods
     finally:
         await linkedin._http.aclose()
         await store._http.aclose()
 
-async def main() -> None:
+async def main(evidence: Path | None = None) -> None:
     """Require real encryption roundtrip, safe failures and an artifact-only result."""
+    evidence = HERE / "e2e-evidence.json" if evidence is None else evidence
+    evidence.write_text(json.dumps({"synthetic_only": True, "run_status": "failed", "scenarios": {}}, indent=2) + "\n")
     verdicts: dict[str, bool] = {}
     with tempfile.TemporaryDirectory() as folder:
         tmp = Path(folder)
@@ -110,10 +124,24 @@ async def main() -> None:
         zero = await asyncio.to_thread(subprocess.run, ["openssl", "cms", "-decrypt", "-binary", "-inform", "DER", "-in", str(tmp / "empty.cms"), "-inkey", str(key), "-recip", str(cert)], capture_output=True, check=False)
         zero_bundle = json.loads(zero.stdout) if zero.returncode == 0 else {}
         verdicts["successful_empty_sources_encrypt"] = empty is not None and set(methods) == {"GET"} and zero_bundle.get("prospects", {}).get("row_count") == 0 and zero_bundle.get("events", {}).get("row_count") == 0 and all(not value["rows"] and value["page_count"] == 1 for value in zero_bundle.get("snapshots", {}).values())
-        for case in ("unavailable", "malformed", "domain", "truncated", "escaped_domain", "db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate"):
+        for case in EXPECTED_FAILURES:
             target = tmp / f"{case}.cms"
             encrypted, methods = await exercise(case, cert, target)
             verdicts[f"{case}_rejected_without_artifact"] = encrypted is None and not target.exists() and set(methods) == {"GET"}
+        with patch.object(collector, "collect_sources", side_effect=RuntimeError("unrelated synthetic fault")):
+            try:
+                await exercise("db_missing_count", cert, tmp / "unrelated.cms")
+            except RuntimeError as error:
+                verdicts["unexpected_failure_not_counted_as_rejection"] = str(error) == "unexpected synthetic collection failure"
+            else:
+                verdicts["unexpected_failure_not_counted_as_rejection"] = False
+        with patch.object(collector, "collect_sources", return_value={}), patch.object(collector, "encrypt_bundle", side_effect=RuntimeError("private source collection failed")):
+            try:
+                await exercise("db_missing_count", cert, tmp / "encrypt-fault.cms")
+            except RuntimeError as error:
+                verdicts["encryption_failure_not_counted_as_rejection"] = str(error) == "private source collection failed"
+            else:
+                verdicts["encryption_failure_not_counted_as_rejection"] = False
         async def synthetic_export(certificate: Path, target: Path) -> None:
             """Exercise the actual collector/encryptor under the CLI verdict boundary."""
             value, _ = await exercise("complete", certificate, target)
@@ -132,7 +160,15 @@ async def main() -> None:
             code = await asyncio.to_thread(collector.main)
         verdicts["cli_fixed_failure_log_without_plaintext"] = code == 1 and logged.getvalue() == "private source export: failed\n" and not (tmp / "failed.cms").exists()
         verdicts["no_plaintext_source_file"] = all(path.suffix != ".json" for path in tmp.iterdir())
-    (HERE / "e2e-evidence.json").write_text(json.dumps({"synthetic_only": True, "scenarios": verdicts}, indent=2) + "\n")
+        stale = tmp / "stale-evidence.json"
+        stale.write_text(json.dumps({"synthetic_only": True, "run_status": "passed", "scenarios": {"stale": True}}))
+        with patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"", b"")):
+            try:
+                await main(stale)
+            except RuntimeError:
+                pass
+        verdicts["early_failure_invalidates_stale_evidence"] = json.loads(stale.read_text()) == {"synthetic_only": True, "run_status": "failed", "scenarios": {}}
+    evidence.write_text(json.dumps({"synthetic_only": True, "run_status": "passed" if all(verdicts.values()) else "failed", "scenarios": verdicts}, indent=2) + "\n")
     if not all(verdicts.values()):
         raise RuntimeError("private source E2E failed")
     print("private source synthetic E2E: verified")

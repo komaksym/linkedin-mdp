@@ -12,6 +12,8 @@ Throughput checkpoint: one owner holds this isolated checkout and its coupled co
 
 Validation: the timestamp scenario failed before the projection edit and all 19 synthetic verdicts passed afterward. Scoped Ruff and mypy passed, the full 21-test repository suite passed in an isolated runtime using the declared dependencies, and source/wheel builds passed. The initially installed local MCP package lacked `Client`; using the declared project runtime resolved that collection failure. Independent read-only review found no actionable issues.
 
+PR review correction: two synthetic failure injections first showed that an unrelated encryption fault could count as an expected negative rejection and an early certificate failure preserved prior all-true evidence. The E2E now attributes each negative case to its expected collection error, lets encryption failures propagate, and records failed run status before certificate generation. All 22 synthetic verdicts, 21 isolated repository tests, scoped Ruff, 10-file mypy, and wheel build pass after the correction.
+
 ## Inbox evidence and actionable report
 
 Summary: add the first reviewable prerequisite for the owner's two-list report. Preserve private message observations for existing prospects without treating unknown invitation notes as confirmed DMs. The complete desired report contract is in `docs/action-report-contract.md`.

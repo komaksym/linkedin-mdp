@@ -1,0 +1,1 @@
+Edit the provided infographic. Preserve the complete composition, all colors and every other label. Change only the bottom verification label from "Synthetic E2E: 19 checks passed" to "Synthetic E2E: 22 checks passed". No other text changes. Keep opaque neutral canvas and high contrast. Do not add dates, row data, examples or extra labels.

@@ -39,6 +39,11 @@ def test_invitation_shortlist_e2e() -> None:
             "history rows without event IDs collapsed to one event",
             "duplicate prospect IDs allowed event identity misattachment",
             "CRM-only policy permitted for an all-history report",
+            "complete empty provider pages rejected",
+            "normalized CRM send dates lost or conflicting aliases selected",
+            "text or ambiguous opt-out flags admitted recommendations",
+            "date-precision event calendar days shifted by UTC conversion",
+            "private-file cleanup masked a real filesystem write failure",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

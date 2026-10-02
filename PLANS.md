@@ -158,3 +158,5 @@ The approved credentialed validation reproduced zero planned events. Read-only d
 - Independent workstreams: n/a. The contract couples snapshot validation, planning, and apply behavior, and the clone has one owner.
 - Shared mutable state: one owner writes the exclusive clone; plan, scenario runner, implementation, and evidence happen in order.
 - Smallest safe decomposition: one implementation owner keeps the 1:1/group/thread safety invariant visible across the single slice.
+
+PR #10 review wave: reproduced 15 failures before production edits across complete empty provider pages, normalized/conflicting CRM send-date labels, imported opt-out flags and non-UTC date precision. Correct interpretation at those input boundaries; preserve strict raw/exported set equality and UTC instant semantics. Expanded the E2E matrix to 70 scenarios. Also reproduced CodeRabbit’s descriptor cleanup failure with a real OS file-size limit; caller-owned descriptor cleanup now preserves the original filesystem error. Parent validation passed all 70 scenarios plus wrapper, 22 full-suite checks, scoped Ruff, 12-file mypy, sdist/wheel and private live-source CLI.

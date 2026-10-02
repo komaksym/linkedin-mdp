@@ -50,3 +50,5 @@ python scripts/build_invitation_shortlist.py \
 ```
 
 Input files must be regular files with no group or world permissions. The CLI creates the new output directory with mode `0700` and both reports with mode `0600`. Existing output directories are refused. Standard output contains only a fixed completion status; validation errors never include row content, names, URLs, or message text. `tests/e2e_invitation_shortlist.py` exercises synthetic source boundaries. `tests/test_invitation_shortlist_e2e.py` runs the matrix and writes a sanitized artifact with fixed verdicts and a digest.
+
+Review boundary corrections: a successfully fetched empty provider page may have zero snapshot elements; positive page count, complete status and matching raw/exported row sets still apply. CRM date keys use the same normalized labels as send detection; conflicting alias values leave the date unknown. Date-precision events retain the source calendar day before UTC conversion. Explicit negative opt-out values (`false`, `no`, `0`, empty or absent) remain negative; affirmative or uninterpretable nonempty flags exclude the prospect.

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 47,
+  "scenario_count": 70,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -8,7 +8,12 @@
     "raw-only provider invitations omitted from exported rows",
     "history rows without event IDs collapsed to one event",
     "duplicate prospect IDs allowed event identity misattachment",
-    "CRM-only policy permitted for an all-history report"
+    "CRM-only policy permitted for an all-history report",
+    "complete empty provider pages rejected",
+    "normalized CRM send dates lost or conflicting aliases selected",
+    "text or ambiguous opt-out flags admitted recommendations",
+    "date-precision event calendar days shifted by UTC conversion",
+    "private-file cleanup masked a real filesystem write failure"
   ],
-  "artifact_digest": "173ecb5895d11afba45a4d7e469ee78263b943261b7084a6e003274f8c626be4"
+  "artifact_digest": "a957046e67bb504c22fb35a1eee7f732c40f3054da4dc6acf544168bce6eb0ca"
 }

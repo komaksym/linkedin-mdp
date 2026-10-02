@@ -298,7 +298,7 @@ def _validate_provider_snapshot(value: Any, domain: str) -> list[Mapping[str, An
     page_count = snapshot.get("page_count")
     raw_elements = _array(snapshot.get("raw_elements"), "source_snapshot_incomplete")
     rows = _array(snapshot.get("rows"), "source_snapshot_incomplete")
-    if not isinstance(page_count, int) or isinstance(page_count, bool) or page_count < 1 or not raw_elements:
+    if not isinstance(page_count, int) or isinstance(page_count, bool) or page_count < 1:
         raise ShortlistInputError("source_snapshot_incomplete")
     raw_rows: list[Any] = []
     for element in raw_elements:
@@ -429,8 +429,8 @@ def _event_history(events: Sequence[Mapping[str, Any]], prospect_urls: Mapping[s
             source_time = payload["provider_sent_at"]
             event_date = _provider_local_date(source_time)
             time_precision = "provider_local_day" if event_date else "unknown"
-        elif semantics == "actual" and precision == "date" and event_at is not None:
-            event_date = event_at.date()
+        elif semantics == "actual" and precision == "date" and event_at is not None and isinstance(source_time, str):
+            event_date = datetime.fromisoformat(source_time.strip()).date()
             time_precision = "calendar_day"
         elif semantics == "actual" and precision == "instant" and event_at is not None:
             event_date = event_at.date()
@@ -456,14 +456,19 @@ def _crm_history(prospects: Sequence[Mapping[str, Any]]) -> list[HistoryEvidence
         if not _crm_sent(attributes):
             continue
         profile_url = normalize_profile_url(row.get("linkedin_url"))
-        sent_date = attributes.get("Invite Sent Date")
+        dates = {
+            _stable_hash(value): value
+            for key, value in attributes.items()
+            if isinstance(key, str) and _key(key) == "invite_sent_date" and value is not None and value != ""
+        }
+        sent_date = next(iter(dates.values())) if len(dates) == 1 else None
         event_date: date | None = None
         if isinstance(sent_date, str):
             try:
                 event_date = _date(sent_date, "crm_invitation_date_invalid")
             except ShortlistInputError:
                 pass
-        evidence_id = _history_evidence_id("crm-invitation", [row.get("id"), profile_url, sent_date])
+        evidence_id = _history_evidence_id("crm-invitation", [row.get("id"), profile_url, sent_date if len(dates) <= 1 else sorted(dates)])
         result.append(HistoryEvidence(
             evidence_id,
             profile_url,
@@ -533,12 +538,16 @@ def _key(value: str) -> str:
 
 
 def _suppressed(attributes: Mapping[str, Any]) -> bool:
-    """Recognize explicit suppression fields and a fixed set of terminal status values."""
+    """Exclude affirmative or ambiguous suppression flags and explicit terminal statuses."""
     for raw_key, value in attributes.items():
         if not isinstance(raw_key, str):
             continue
         key = _key(raw_key)
-        if key in {"opt_out", "opted_out", "do_not_contact", "suppressed", "linkedin_opt_out"} and value is True:
+        if key in {"opt_out", "opted_out", "do_not_contact", "suppressed", "linkedin_opt_out"}:
+            if value is None or value is False or value == 0:
+                continue
+            if isinstance(value, str) and value.strip().casefold() in {"", "false", "no", "0"}:
+                continue
             return True
         if (
             key in {"status", "linkedin_status", "invite_status", "next_action"}

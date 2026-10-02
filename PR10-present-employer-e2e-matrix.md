@@ -35,3 +35,5 @@ Greptile found a valid canonical employer assignment could remain in audit after
 ## Unicode key repair
 
 Two JSON-decoded unpaired surrogate key cases failed before the repair because raw UTF-8 hashing raised UnicodeEncodeError before unresolved evidence was recorded. Current-employer key IDs now hash ASCII-escaped JSON bytes. Identity normalization stays unchanged, and invalid keys remain unresolved without exposing them. The 84-scenario matrix plus wrapper, 22 full-suite checks, scoped strict Ruff, 12-file mypy and source/wheel builds pass. Surrogate fixtures use distinct numeric codepoints without a lint suppression.
+
+PR12 review correction: two UTC conversion overflow boundaries and the Markdown prospect-ID provenance assertion failed before the fix (3 failed, 90 passed). The correction catches overflow as invalid_timestamp and prints the prospect ID beside the source pointer. All 93 E2E scenarios, the full 22-test suite, scoped Ruff, 9-file default source mypy and source/wheel builds pass. Independent read-only review found no actionable issue.

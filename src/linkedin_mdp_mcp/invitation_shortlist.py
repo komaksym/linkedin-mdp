@@ -470,7 +470,7 @@ def _date_added(
         return {"date_added": None, "date_added_source": provenance}
     try:
         parsed = _timestamp(value, "source_created_at_invalid")
-    except ShortlistInputError:
+    except (ShortlistInputError, OverflowError):
         provenance["reason"] = "invalid_timestamp"
         return {"date_added": None, "date_added_source": provenance}
     if parsed > now:
@@ -782,6 +782,7 @@ def _make_markdown(result: Mapping[str, Any]) -> str:
                 "",
                 f"Date added: {item['date_added'] or 'unknown'} "
                 f"(source: {item['date_added_source']['source_ref'] or 'unknown'}; "
+                f"prospect: {item['date_added_source']['prospect_id'] or 'unknown'}; "
                 f"reason: {item['date_added_source']['reason'] or 'none'}).",
                 "",
                 f"Action: {item['action']}.",

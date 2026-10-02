@@ -80,6 +80,8 @@ def test_invitation_shortlist_e2e() -> None:
             "invalid or future creation timestamps were not withheld as unknown",
             "creation timestamp or qualification spoof changed ranking or membership",
             "private Markdown omitted creation-time provenance",
+            "UTC conversion overflow aborted timestamp enrichment",
+            "private Markdown omitted the creation-time prospect ID",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

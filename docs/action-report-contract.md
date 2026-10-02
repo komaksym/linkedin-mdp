@@ -12,15 +12,17 @@ Rank eligible candidates using observed professional activity, mutual connection
 
 Group the DM list by action:
 
-- Reply when the latest verified inbound LinkedIn message is later than the latest outbound message. Include the relevant message and a response draft.
-- Send a researched first DM to a verified accepted connection when complete relevant inbox evidence establishes no prior outbound DM.
-- Follow up when a verified outbound DM is at least 72 hours old and has no later reply. Show elapsed time and read status. Missing read evidence means unknown. No reply does not prove the person ignored the message.
+- Reply when the latest verified inbound LinkedIn message is later than the latest outbound message. Include the relevant message and a reminder to respond; the owner writes the reply.
+- Prepare a researched first-DM draft for a verified accepted connection when complete relevant inbox evidence establishes no prior outbound DM. Automatically write a personalized opener grounded in the saved background research.
+- Follow up when a verified outbound DM is at least 72 hours old and has no later reply. Show elapsed time and read status as a reminder; the owner writes the follow-up. Missing read evidence means unknown. No reply does not prove the person ignored the message.
+
+Only first-DM drafts are generated automatically. Replies and follow-ups remain manual, with no generated response text. The report does not send any messages.
 
 Exclude opt-outs and terminal negative responses from automatic follow-up recommendations. Keep LinkedIn and email history separate. Invitation notes must not count as first DMs. Missing, stale, malformed, or truncated sources withhold affected actions instead of producing false empty queues.
 
 ## Research and storage
 
-For newly accepted connections eligible for first DMs, automatically research the exact person through Exa or Clay. Save supported professional facts, cited URLs, source dates when known, retrieval time, provider, identity binding, uncertainty, and status in Supabase before publishing a personalized draft. Surface research failures and allow bounded retries. Never invent a personalization fact when research fails.
+For newly accepted connections eligible for first DMs, automatically research the exact person through Exa, Clay, or another available research provider. Save supported professional facts, cited URLs, source dates when known, retrieval time, provider, identity binding, uncertainty, and status in Supabase before publishing a personalized first-message opener. Surface research failures and allow bounded retries. Never invent a personalization fact when research fails.
 
 Log source observations, research attempts and results, report recommendations, drafts, actual sends, acceptances, replies, and run outcomes as distinct facts. A draft or recommendation does not establish that a message was sent. Replay must not duplicate evidence. Preserve failed research attempts separately so they cannot prevent a later successful result from being saved.
 
@@ -30,4 +32,4 @@ The scheduled agent orchestrates the run. Keep ingestion, validation, queue buil
 
 This PR adds only private INBOX evidence planning and optional persistence for existing prospects. It preserves exact participant identity, message content and subject, attachment evidence, provider time, and uncertainty. It does not produce the two lists yet.
 
-Next, verify live inbox persistence and replay, classify invitation notes versus DMs, establish relevant source coverage, integrate invitation eligibility, build the queues, connect research persistence, and publish the actual person-level report. Enable the scheduled path after live verification, then observe a scheduled run before claiming completion.
+Live inbox persistence and replay are verified. Next, classify invitation notes versus DMs, establish relevant source coverage, integrate invitation eligibility, build the queues, connect research persistence and first-message drafting, and publish the actual person-level report. Enable the scheduled path after live report verification, then observe a scheduled run before claiming completion.

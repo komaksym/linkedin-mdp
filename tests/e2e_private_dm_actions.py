@@ -295,7 +295,7 @@ def cli_scenario() -> None:
     """Prove the private CLI emits fixed logs and fresh private report files."""
     with tempfile.TemporaryDirectory() as tmp:
         base = Path(tmp)
-        source = {"schema_version": 1, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
+        source = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
         inputs = {"source": source, "changelog": changelog([]), "policy": policy(), "research": research()}
         for name, data in inputs.items():
             path = base / f"{name}.json"
@@ -304,7 +304,7 @@ def cli_scenario() -> None:
         cmd = [sys.executable, str(ROOT / "scripts" / "build_private_dm_actions.py")]
         for name in inputs:
             cmd.extend([f"--{name}", str(base / f"{name}.json")])
-        cmd.extend(["--output-dir", str(base / "report"), "--account-profile-url", ACCOUNT, "--account-member-urn", OWNER_URN, "--now", NOW.isoformat()])
+        cmd.extend(["--output-dir", str(base / "report"), "--account-profile-url", ACCOUNT, "--now", NOW.isoformat()])
         result = subprocess.run(cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
         assert result.returncode == 0 and result.stdout == "private DM actions: report written\n" and result.stderr == ""
         output = base / "report"
@@ -316,6 +316,15 @@ def cli_scenario() -> None:
         assert len(first) == 1 and first[0]["connected_on"] == "2026-09-30"
         assert "Connected on: 2026-09-30 (calendar day)" in markdown
         assert "Connection source: connections.rows[0].Connected On" in markdown
+        for invalid_urn in (None, "urn:li:organization:123", "urn:li:person:"):
+            source.pop("account_member_urn", None) if invalid_urn is None else source.__setitem__("account_member_urn", invalid_urn)
+            (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
+            invalid_cmd = cmd.copy()
+            invalid_cmd[invalid_cmd.index("--output-dir") + 1] = str(base / f"invalid-{invalid_urn is None}")
+            failed = subprocess.run(invalid_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
+            assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
+            assert not Path(invalid_cmd[invalid_cmd.index("--output-dir") + 1]).exists()
+        source["account_member_urn"] = OWNER_URN
         source["snapshots"]["INBOX"] = None
         (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
         bad_cmd = cmd.copy()

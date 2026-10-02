@@ -260,6 +260,24 @@ def run_matrix() -> dict[str, str]:
     reversed_report = report([incoming, outbound], [activity(incoming, inbound=True, activity_id="activity-2"), activity(outbound)])
     ordered_report = report([outbound, incoming], [activity(outbound), activity(incoming, inbound=True, activity_id="activity-2")])
     check("input_order_determinism", [(item["profile_url"], item["message_at"]) for item in reversed_report["reply"]] == [(item["profile_url"], item["message_at"]) for item in ordered_report["reply"]])
+    unrelated_group = inbox_row(hours=90, content="Synthetic unrelated group")
+    unrelated_group["CONVERSATION ID"] = "unrelated-group"
+    unrelated_group["RECIPIENT PROFILE URLS"] = ["https://www.linkedin.com/in/person-b", "https://www.linkedin.com/in/person-c"]
+    group_event = activity(unrelated_group, activity_id="group-activity")
+    group_event["activity"]["thread"] = "urn:li:messagingThread:unrelated-group"
+    for name, extra_events in (("identified_group_row_is_local", []), ("identified_group_activity_is_local", [group_event])):
+        result = report([outbound, unrelated_group], [activity(outbound), *extra_events])
+        check(name, len(result["follow_up"]) == 1)
+    for name, value in (("missing", None), ("null", None), ("nonboolean", "unknown"), ("nonmapping", [])):
+        incomplete_policy = policy()
+        if name == "missing":
+            del incomplete_policy["profiles"][PEER]["opt_out"]
+        elif name == "nonmapping":
+            incomplete_policy["profiles"][PEER] = value
+        else:
+            incomplete_policy["profiles"][PEER]["opt_out"] = value
+        result = report([outbound], [activity(outbound)], policy_data=incomplete_policy)
+        check("policy_" + name + "_is_unverified", result["withheld"][0]["reason"] == "policy_opt_out_state_unverified")
     return verdicts
 
 

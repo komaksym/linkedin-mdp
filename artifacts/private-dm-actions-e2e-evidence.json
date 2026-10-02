@@ -1,6 +1,6 @@
 {
   "run_status": "passed",
-  "scenario_count": 55,
+  "scenario_count": 61,
   "verdicts": {
     "ambiguous_correlation": "passed",
     "boolean_epoch": "passed",
@@ -14,6 +14,8 @@
     "first_dm_connection_date_provenance": "passed",
     "first_dm_snapshot_phrase": "passed",
     "future_activity": "passed",
+    "identified_group_activity_is_local": "passed",
+    "identified_group_row_is_local": "passed",
     "incomplete_changelog_withheld": "passed",
     "input_order_determinism": "passed",
     "invitation_note_not_dm": "passed",
@@ -39,6 +41,10 @@
     "old_provider_connection_blocks_first_dm": "passed",
     "optout_blocks_all": "passed",
     "owner_mismatch": "passed",
+    "policy_missing_is_unverified": "passed",
+    "policy_nonboolean_is_unverified": "passed",
+    "policy_nonmapping_is_unverified": "passed",
+    "policy_null_is_unverified": "passed",
     "policy_provider_date_mismatch_blocks_first_dm": "passed",
     "private_cli": "passed",
     "qualification_required": "passed",

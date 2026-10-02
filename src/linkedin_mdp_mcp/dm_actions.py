@@ -223,6 +223,7 @@ def classify_dm_evidence(
         return DmEvidence((), (), (), tuple(sorted(set(reasons))), acquired, upstream_freshness)
 
     tainted: set[str] = set()
+    unidentified_threads: set[str] = set()
     peers_by_thread: dict[str, set[str]] = defaultdict(set)
     for row in rows:
         thread, participants, malformed = _participants(row)
@@ -234,6 +235,8 @@ def classify_dm_evidence(
             tainted.add(thread)
             continue
         peers_by_thread[suffix].update(participants - {account})
+        if malformed or account not in participants:
+            unidentified_threads.add(suffix)
         if malformed or not _safe_one_to_one_row(row, account) or len(participants) != 2:
             tainted.add(suffix)
         if len(peers_by_thread[suffix]) != 1:
@@ -343,6 +346,14 @@ def classify_dm_evidence(
     for thread in tainted:
         for peer in peers_by_thread.get(thread, set()):
             uncertain.append(DmUnknown(peer, thread, None, None, "tainted_thread", "inbox.thread"))
+    attributed: list[DmUnknown] = []
+    for item in uncertain:
+        peers = peers_by_thread.get(item.thread or "", set())
+        if item.profile_url is None and peers and item.thread not in unidentified_threads:
+            attributed.extend(DmUnknown(peer, item.thread, item.direction, item.occurred_at, item.reason, item.source_ref) for peer in sorted(peers))
+        else:
+            attributed.append(item)
+    uncertain = attributed
     verified.sort(key=lambda item: (item.profile_url, item.occurred_at, item.activity_id))
     uncertain.sort(key=lambda item: (item.profile_url or "", item.thread or "", item.source_ref, item.reason))
     return DmEvidence(tuple(verified), tuple(uncertain), tuple(sorted(tainted)), tuple(sorted(set(reasons))), acquired, upstream_freshness)
@@ -463,8 +474,11 @@ def plan_dm_actions(
             continue
         policy_profiles = policy.get("profiles") if isinstance(policy, Mapping) else None
         policy_rows = [value for key, value in policy_profiles.items() if normalize_profile_url(key) == profile] if isinstance(policy_profiles, Mapping) else []
-        if len(policy_rows) > 1 or (len(policy_rows) == 1 and (not isinstance(policy_rows[0], Mapping) or policy_rows[0].get("opt_out") is not False)):
+        if len(policy_rows) == 1 and isinstance(policy_rows[0], Mapping) and policy_rows[0].get("opt_out") is True:
             report["withheld"].append({"profile_url": profile, "reason": "opt_out"})
+            continue
+        if len(policy_rows) > 1 or (len(policy_rows) == 1 and (not isinstance(policy_rows[0], Mapping) or policy_rows[0].get("opt_out") is not False)):
+            report["withheld"].append({"profile_url": profile, "reason": "policy_opt_out_state_unverified"})
             continue
         messages = [item for item in evidence.verified if item.profile_url == profile]
         unknown = [item for item in evidence.uncertain if item.profile_url in (profile, None)]

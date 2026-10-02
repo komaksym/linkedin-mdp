@@ -1,0 +1,7 @@
+Use case: infographic-diagram
+Asset type: small technical system infographic for a GitHub PR.
+Create a polished 16:9 landscape English raster infographic with a structural-breakdown layout and technical-schematic style. Title exactly "Inbox evidence before DM actions". Opaque neutral warm-gray canvas, clear thin outer boundary, dark high-contrast typography, restrained blue and teal accents, generous whitespace. Keep all labels inside the canvas. No transparent background.
+
+Show a high-level left-to-right system of three main parts, with neatly illustrated stacked provider pages labeled "LinkedIn INBOX", a central validation component labeled "Validate full snapshot" with a smaller label "Exact profile identities", and an existing database cylinder labeled "Supabase events". The link entering storage is labeled "Duplicate-safe message evidence". Include a small clear callout "Dry-run by default" and another "Read status stays unknown". Use a separate muted lower box connected with a dashed pending line, labeled exactly "Next slice: reply, first DM, follow-up". Make the pending state obvious.
+
+Use clean engineering geometry and simple icons. Avoid a dense flowchart or DAG. All text is large and legible. Do not invent text, names, profile URLs, message content, credentials, private identifiers, actual counts, percentages, or claims of live completion. This diagram explains a first evidence-ingestion slice whose downstream action report is still pending.

@@ -1,5 +1,17 @@
 # Implementation plans
 
+## Inbox evidence and actionable report
+
+Summary: add the first reviewable prerequisite for the owner's two-list report. Preserve private message observations for existing prospects without treating unknown invitation notes as confirmed DMs. The complete desired report contract is in `docs/action-report-contract.md`.
+
+Owner clarification: automatically generate only researched first-DM drafts, with a personalized opener grounded in persisted Clay, Exa, or other provider evidence. Reply and follow-up rows show conversation evidence and action reminders; the owner writes those messages. Sending remains manual. Preserve the invitation ranking and Supabase audit requirements.
+
+UTC correction checkpoint (`5cc2381`): 39 synthetic HTTP-boundary inbox scenarios, all 32 existing report E2E scenarios, and 20 pytest checks passed at that revision. Scoped Ruff passed while excluding the unchanged existing quoted-annotation rule. Full-source mypy plus the CLI and live verifier passed across 10 files. The package built successfully. Independent review accepted the whole-thread taint, subject-identity, and explicit UTC-format corrections. The observed provider string fields are covered by fixtures. The implementation has no schema, workflow, schedule, or outreach-send change; the separately approved one-time workflow verified actual inbox persistence. The later review-repair checkpoint below records the expanded suites.
+
+The live verification utility compares complete stored payloads and all event timestamps, preserving earlier observation times on idempotent replay. Its missing-credentials path emits only a fixed failure message. The approved live run https://github.com/komaksym/linkedin-mdp/actions/runs/36985062303 verified persistence, full private readback, and duplicate-free frozen-snapshot replay at revision `5cc23814450c14b4a8d3312c682b5f65fa87e22c`. Updated PR CI run 36985032311 passed. Actual DM queue readiness remains pending reliable message classification and coverage checks. A pytest entry point repeats the existing E2E runner in PR CI without changing workflow infrastructure.
+
+Applied principles: Model the Domain keeps event bodies in `InboxSyncPlan` and sanitized counts in `InboxSyncSummary`. Sequence Work into Verifiable Units makes inbox evidence the first slice before ranking, research, and action publication.
+
 ## Google Docs morning report
 
 ### Contract
@@ -71,3 +83,58 @@ Keep this small fix on PR 5's existing branch, in one commit as requested.
 Throughput checkpoint: implementation and independent review run in parallel; live credentials remain in GitHub, and the test runner keeps report contents out of public logs.
 
 Validation before commit: the regression against the original client failed with expected exit 0 versus actual exit 1 and `morning report: blocked`. The patched client passes all 32 HTTP-boundary E2E scenarios and 19 existing tests. Scoped Ruff, mypy and package build pass. The `processedAt` comprehension received a type-only narrowing correction so the touched client passes mypy. Independent review found no actionable issues. The exact committed SHA will be used for the live report check; its private readback evidence and infographic will be recorded in the PR conversation.
+
+## Inbox evidence sync
+
+### PR 8 review repair
+
+Summary: repair the four reported review findings on the verified owning branch, then babysit the latest GitHub verdict. Preserve the complete report as the next authorized work after this prerequisite.
+
+- [x] Reproduced endpoint/domain pagination escape before the client correction; reject changed scope before any database access, retain valid partial pagination links within the original request scope.
+- [x] Reproduced missing-content attachment loss and valid empty-plan verifier failure; keep null/nonstring content invalid and distinguish empty verification from persisted-event proof. The new review runner also fails against original revision `0893b72` and passes against the repair.
+- [x] Aligned live-validation documentation with recorded evidence and remaining report work. The report contract already reflected successful live verification.
+- [x] First repair checkpoint (`af41b35`): 41 inbox scenarios, 8 review scenarios, 32 report scenarios, 21 pytest checks, lint, types, and build passed. Independent review was clean; all four threads were answered. CI run 36989915353 and live persistence/readback/replay run 36990096445 passed against this revision.
+- [x] CodeRabbit follow-up (`c29b06f`): replaced optimization-removable assertions with unconditional checks. The corrupt-readback E2E subprocess under `python -O` failed before the correction and now passes, alongside normal nonempty readback and valid empty verification. This checkpoint had 11 review scenarios; CI run 36991010814 and live readback/replay run 36991082417 passed.
+- [x] Inviter identity review correction: the real verifier boundary rejected equivalent apex/www/regional profile URLs before the fix. It now canonicalizes every outgoing inviter with the existing strict profile normalizer before cardinality checks, while invalid and distinct identities remain rejected before writes. The expanded 15-scenario review E2E, 21 pytest checks, scoped Ruff, full-source mypy (10 files), and package build pass. No schema, workflow, or schedule changes.
+- [ ] Follow fresh Greptile/CodeRabbit review and CI to merge-ready. Continue one report feature at a time with concrete live artifacts.
+
+- [x] Unicode identity correction: the approved private source export exposed valid non-ASCII profile slugs rejected by the strict normalizer. Three real HTTP-boundary identity/replay cases failed before the correction. Independent review then reproduced silent literal-control removal by URL parsing; four more cases failed before adding the pre-parse guard. The complete inbox suite now has 54 scenarios. Preserve exact code points and equivalent UTF-8 encoding without transliteration. Issue #9 tracks this source-identity gap. Revalidate this revision and follow fresh review before claiming ready.
+
+Throughput checkpoint: root owns client pagination and existing E2E; one repair worker owns inbox content, live verifier and separate E2E files. A read-only worker inventories the next report slice. No shared-file edits or parallel pushes.
+
+### Live timestamp correction
+
+The approved credentialed validation reproduced zero planned events. Read-only diagnostics confirmed supported prospect identities and mapped rows whose dates use `YYYY-MM-DD HH:MM:SS UTC`. The ISO-only parser rejected that format. Two new HTTP-boundary persistence/replay assertions failed before changing parsing; the correction accepts only the exact explicit UTC format. Unknown abbreviations, conflicting offsets, invalid calendar dates, and naive timestamp semantics remain covered. At this historical UTC checkpoint the inbox suite had 39 scenarios; later review repairs expand it as recorded above. Lint, types, tests, build, and actual persistence/readback/replay passed for that checkpoint.
+
+### Contract
+
+- Read complete MDP INBOX snapshots through strict element and paging validation before any store write. Preserve no-read-receipt semantics as unknown.
+- Plan typed, duplicate-safe `LINKEDIN_MESSAGE_OBSERVED` events only when direction and the exact known prospect peer are established from canonical LinkedIn `/in/` URLs.
+- Withhold every message in any conversation whose participant union exceeds two. Never infer direction from names or row order.
+- Preserve provider message content and timestamp semantics. Aware timestamps use provider time; naive provider timestamps use the aware observation time and say that local timezone is unspecified.
+- Default the CLI to dry-run. Require `--apply` for writes and emit only fixed status output.
+- Keep this slice limited to inbox sync code, its CLI, docs, and synthetic HTTP-boundary E2E evidence.
+
+### Milestones
+
+1. Record failure scenarios and run them red against the current code before production edits.
+2. Implement the typed event planner, fail-closed snapshot reader, opt-in CLI, and setup/semantics documentation.
+3. Run synthetic HTTP-boundary E2E, scoped lint/typecheck, existing tests, and package build. Fix any failures.
+4. Save sanitized, repeatable E2E verdict evidence. Leave review, PR publishing, and live sync to the coordinating task.
+
+### E2E failure scenarios
+
+- Preserve exact inbound and outbound 1:1 messages, match only an exact known prospect identity, and replay with no duplicate insert.
+- Canonicalize supported LinkedIn profile hosts while rejecting lookalike hosts, credentials, extra path segments, and non-`/in/` profiles.
+- Never use names to infer sender direction. Reject self, group, ambiguous, unknown-peer, malformed-row, and malformed-timestamp records with aggregate skip reasons.
+- If participant union across rows makes a conversation a group thread, withhold the entire conversation, including rows that look 1:1 in isolation.
+- Preserve aware timestamps. For accepted naive local timestamps, use observed time and mark provider-local timezone as unspecified. Keep read state unknown.
+- Reject invalid/truncated snapshot envelopes, malformed page elements and links, first-page or generic 404s, and page-limit truncation before prospect lookup or writes. Accept the known late exhaustion 404 after a successful page.
+- Verify duplicate-safe persisted event bodies and no writes on preflight failure or dry-run. Sanitize CLI output and keep `--apply` opt-in.
+
+### Throughput checkpoint
+
+- Blocking first steps: record and run the HTTP-boundary scenarios red before production edits.
+- Independent workstreams: n/a. The contract couples snapshot validation, planning, and apply behavior, and the clone has one owner.
+- Shared mutable state: one owner writes the exclusive clone; plan, scenario runner, implementation, and evidence happen in order.
+- Smallest safe decomposition: one implementation owner keeps the 1:1/group/thread safety invariant visible across the single slice.

@@ -1,0 +1,53 @@
+{
+  "kind": "synthetic HTTP-boundary E2E red and green evidence",
+  "base_revision": "caa951c5421dad1790576c6fa1ce0b4fa37889d9",
+  "before_implementation": "ModuleNotFoundError: linkedin_mdp_mcp.inbox_sync",
+  "before_pagination_fix": "AssertionError: ambiguous or malformed snapshot links were accepted",
+  "before_thread_taint_fix": {
+    "multiple_recipient_taints_entire_thread": false,
+    "self_message_taints_entire_thread": false
+  },
+  "before_subject_identity_fix": {
+    "subject_variants_keep_distinct_identity": false
+  },
+  "before_provider_utc_suffix_fix": {
+    "provider_utc_suffix_persisted": false,
+    "provider_utc_suffix_replay_is_idempotent": false
+  },
+  "before_review_repairs": {
+    "snapshot_pagination_scope_cannot_change": false,
+    "partial_next_link_retains_snapshot_scope": false,
+    "missing_content_with_attachment_persists": false,
+    "empty_plan_live_verifier_succeeds": false,
+    "empty_plan_reports_empty_result": false
+  },
+  "before_optimized_verifier_fix": {
+    "optimized_python_rejects_corrupt_readback": false
+  },
+  "after_fixes": {
+    "scenario_count": 54,
+    "review_scenario_count": 15,
+    "review_verdict_artifact": "artifacts/inbox-review-e2e-evidence.json",
+    "passed": true,
+    "verdict_artifact": "artifacts/inbox-e2e-evidence.json"
+  },
+  "live_persistence": {
+    "verified_revision": "5cc23814450c14b4a8d3312c682b5f65fa87e22c",
+    "workflow_run": "https://github.com/komaksym/linkedin-mdp/actions/runs/36985062303",
+    "nonempty_expected_events": true,
+    "full_payload_and_timestamp_readback": true,
+    "frozen_snapshot_replay_inserted_zero": true,
+    "passed": true
+  },
+  "before_unicode_identity_fix": {
+    "unicode_profile_identity_persisted": false,
+    "utf8_profile_alias_replay_is_duplicate_free": false,
+    "combining_profile_identity_preserved": false
+  },
+  "before_literal_control_fix": {
+    "literal_tab_profile_rejected": false,
+    "literal_carriage_return_profile_rejected": false,
+    "literal_newline_profile_rejected": false,
+    "literal_leading_nul_profile_rejected": false
+  }
+}

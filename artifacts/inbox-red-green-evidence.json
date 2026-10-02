@@ -1,0 +1,19 @@
+{
+  "kind": "synthetic HTTP-boundary E2E red and green evidence",
+  "base_revision": "caa951c5421dad1790576c6fa1ce0b4fa37889d9",
+  "before_implementation": "ModuleNotFoundError: linkedin_mdp_mcp.inbox_sync",
+  "before_pagination_fix": "AssertionError: ambiguous or malformed snapshot links were accepted",
+  "before_thread_taint_fix": {
+    "multiple_recipient_taints_entire_thread": false,
+    "self_message_taints_entire_thread": false
+  },
+  "before_subject_identity_fix": {
+    "subject_variants_keep_distinct_identity": false
+  },
+  "after_fixes": {
+    "scenario_count": 36,
+    "passed": true,
+    "verdict_artifact": "artifacts/inbox-e2e-evidence.json"
+  },
+  "live_persistence": "not run; approval pending"
+}

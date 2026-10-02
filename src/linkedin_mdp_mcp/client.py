@@ -77,23 +77,38 @@ class LinkedInMDPClient:
             {"q": "memberAndApplication"},
         )
 
-    async def snapshot(self, domain: str, *, max_pages: int = 10) -> dict[str, Any]:
+    async def snapshot(
+        self,
+        domain: str,
+        *,
+        max_pages: int = 10,
+        strict_elements: bool = False,
+    ) -> dict[str, Any]:
         """Return all exact-distinct rows observed across paginated snapshot elements."""
         page = await self._get_paged(
             "/rest/memberSnapshotData",
             {"q": "criteria", "domain": domain},
             max_pages=max_pages,
             empty_on_404=True,
+            strict_elements=strict_elements,
         )
 
         rows: list[Any] = []
         seen: set[str] = set()
         for element in page.elements:
             if not isinstance(element, dict):
+                if strict_elements:
+                    raise LinkedInAPIError(0, "malformed snapshot element")
                 continue
+            if strict_elements and element.get("snapshotDomain") != domain:
+                raise LinkedInAPIError(0, "snapshot element domain does not match request")
             data = element.get("snapshotData")
             if not isinstance(data, list):
+                if strict_elements:
+                    raise LinkedInAPIError(0, "malformed snapshot data list")
                 continue
+            if strict_elements and element.get("source_result") in ("not_found", "unavailable"):
+                raise LinkedInAPIError(0, "snapshot source is unavailable")
             for row in data:
                 key = json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
                 if key in seen:
@@ -149,7 +164,9 @@ class LinkedInMDPClient:
         *,
         max_pages: int,
         empty_on_404: bool,
+        strict_elements: bool = False,
     ) -> PageResult:
+        """Fetch every page and optionally reject malformed snapshot envelopes."""
         if not 1 <= max_pages <= 50:
             raise ValueError("max_pages must be between 1 and 50")
 
@@ -174,11 +191,17 @@ class LinkedInMDPClient:
                 raise
 
             current = payload.get("elements", [])
+            if strict_elements and not isinstance(current, list):
+                raise LinkedInAPIError(0, "expected a snapshot elements list")
             if isinstance(current, list):
                 elements.extend(current)
+            if strict_elements:
+                if payload.get("source_result") in ("not_found", "unavailable"):
+                    raise LinkedInAPIError(0, "snapshot source is unavailable")
+                self._validate_snapshot_paging(payload)
             pages += 1
 
-            next_url = self._next_link(payload)
+            next_url = self._next_link(payload, strict=strict_elements)
             if next_url is None:
                 return PageResult(elements=elements, page_count=pages, truncated=False)
             url = next_url
@@ -243,16 +266,42 @@ class LinkedInMDPClient:
         if parsed.scheme != "https" or parsed.netloc != self._allowed_host:
             raise LinkedInAPIError(0, "refusing to send LinkedIn credentials to an unexpected host")
 
-    def _next_link(self, payload: dict[str, Any]) -> str | None:
+    def _next_link(self, payload: dict[str, Any], *, strict: bool = False) -> str | None:
+        """Return the single validated next link, or no link at the end."""
         paging = payload.get("paging")
         if not isinstance(paging, dict):
+            if strict and "paging" in payload:
+                raise LinkedInAPIError(0, "malformed snapshot paging object")
             return None
         links = paging.get("links")
         if not isinstance(links, list):
+            if strict and "links" in paging:
+                raise LinkedInAPIError(0, "malformed snapshot paging links")
+            return None
+
+        if strict:
+            next_links: list[str] = []
+            for link in links:
+                if not isinstance(link, dict):
+                    raise LinkedInAPIError(0, "malformed snapshot paging link")
+                rel = link.get("rel")
+                href = link.get("href")
+                if not isinstance(rel, str) or not isinstance(href, str) or not href:
+                    raise LinkedInAPIError(0, "malformed snapshot paging link")
+                if rel.lower() == "next":
+                    next_links.append(href)
+            if len(next_links) > 1:
+                raise LinkedInAPIError(0, "ambiguous snapshot next links")
+            if next_links:
+                candidate = urljoin(LINKEDIN_BASE_URL, next_links[0])
+                self._assert_linkedin_url(candidate)
+                return candidate
             return None
 
         for link in links:
-            if not isinstance(link, dict) or str(link.get("rel", "")).lower() != "next":
+            if not isinstance(link, dict):
+                continue
+            if str(link.get("rel", "")).lower() != "next":
                 continue
             href = link.get("href")
             if not isinstance(href, str) or not href:
@@ -261,3 +310,13 @@ class LinkedInMDPClient:
             self._assert_linkedin_url(candidate)
             return candidate
         return None
+
+    @staticmethod
+    def _validate_snapshot_paging(payload: dict[str, Any]) -> None:
+        """Reject malformed snapshot element containers before aggregation."""
+        if "elements" not in payload or not isinstance(payload.get("elements"), list):
+            raise LinkedInAPIError(0, "malformed snapshot elements")
+        if "page_count" in payload:
+            count = payload.get("page_count")
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                raise LinkedInAPIError(0, "malformed snapshot page count")

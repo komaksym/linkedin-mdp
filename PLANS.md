@@ -234,3 +234,5 @@ PR12 review correction: two UTC conversion overflow boundaries and the Markdown 
 DM parent integration: rebased the unpublished branch onto PR12 correction56324af without shared-history rewriting. Added the inspected system infographic. The 55-scenario CLI artifact is synthetic; cached real changelog has no acquisition metadata, so no live action eligibility or final report publication is claimed.
 
 PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppression and false opt-out reason before production edits. Attribute group uncertainty only to complete identifiable thread participants; malformed participant evidence remains global. Unknown policy opt-out state remains withheld under an explicit unverified-policy reason. Expanded61synthetic E2E,23fulltests,scopedRuff,10sourcefilemypy,sdist/wheel passed.
+
+PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.

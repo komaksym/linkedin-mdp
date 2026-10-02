@@ -16,3 +16,5 @@ The classifier only verifies a DM when a successful CREATE activity uniquely mat
 `tests/e2e_private_dm_actions.py` runs synthetic classifier, planner, and CLI scenarios and writes an aggregate verdict artifact at `artifacts/private-dm-actions-e2e-evidence.json`. This verifies behavior against constructed source shapes. It does not verify a real provider changelog, live account identity, or current database contents.
 
 Group-thread uncertainty is attributed to every identified participant and leaves unrelated conversations eligible. Malformed or unidentified participant evidence remains global uncertainty. Only an explicit true policy opt-out is labelled `opt_out`; incomplete or conflicting policy records use `policy_opt_out_state_unverified`.
+
+A typed MEDIA activity with exact matching nonempty attachments may have empty text. Missing INBOX CONTENT is treated as empty only during exact correlation; blank TEXT without attachments remains unverified.

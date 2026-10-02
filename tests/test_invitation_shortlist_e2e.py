@@ -59,6 +59,7 @@ def test_invitation_shortlist_e2e() -> None:
             "private Markdown omitted creation-time provenance",
             "UTC conversion overflow aborted timestamp enrichment",
             "private Markdown omitted the creation-time prospect ID",
+            "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

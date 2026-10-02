@@ -72,7 +72,7 @@ async def reconcile(rows: list[dict[str, Any]]) -> tuple[Any, list[dict[str, Any
     return result, writes
 
 
-async def verify_live_plan(*, empty: bool = True, corrupt: bool = False) -> tuple[str, list[dict[str, Any]], int]:
+async def verify_live_plan(*, empty: bool = True, corrupt: bool = False, inviter_urls: list[Any] | None = None) -> tuple[str, list[dict[str, Any]], int]:
     """Run real verifier HTTP boundaries with empty, persisted, or corrupt evidence."""
     writes: list[dict[str, Any]] = []
     persisted: dict[str, dict[str, Any]] = {}
@@ -81,7 +81,7 @@ async def verify_live_plan(*, empty: bool = True, corrupt: bool = False) -> tupl
         """Serve one complete invitation and inbox page."""
         domain = request.url.params.get("domain")
         if domain == "INVITATIONS":
-            data: list[dict[str, Any]] = [{"Direction": "OUTGOING", "inviterProfileUrl": ACCOUNT}]
+            data: list[dict[str, Any]] = [{"Direction": "OUTGOING", "inviterProfileUrl": url} for url in (inviter_urls if inviter_urls is not None else [ACCOUNT])]
         else:
             data = [row(CONTENT="unmatched")]
         return httpx.Response(200, json={"elements": [{"snapshotDomain": domain, "snapshotData": data}]})
@@ -148,6 +148,15 @@ async def main() -> None:
         code == 0 and len(writes) == 1
         and line == "live inbox evidence: persistence and duplicate-free replay verified"
     )
+    line, writes, code = await verify_live_plan(empty=False, inviter_urls=[ACCOUNT, "https://linkedin.com/in/account/", "https://pl.linkedin.com/in/account?trk=test"])
+    verdicts["equivalent_inviter_profiles_verify"] = code == 0 and len(writes) == 1
+    for label, urls in (
+        ("distinct_inviter_profiles_rejected", [ACCOUNT, PEER]),
+        ("invalid_inviter_profile_rejected", [ACCOUNT, "https://linkedin.com.evil.test/in/account"]),
+        ("nonstring_inviter_profile_rejected", [ACCOUNT, None]),
+    ):
+        line, writes, code = await verify_live_plan(empty=False, inviter_urls=urls)
+        verdicts[label] = code == 1 and not writes and line == "live inbox evidence: verification failed"
     line, _, code = await verify_live_plan(empty=False, corrupt=True)
     verdicts["corrupt_readback_is_rejected"] = code == 1 and line == "live inbox evidence: verification failed"
     optimized = await asyncio.to_thread(

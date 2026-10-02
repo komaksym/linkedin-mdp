@@ -9,6 +9,10 @@
     "empty_plan_reports_empty_result": true,
     "empty_plan_makes_no_writes": true,
     "nonempty_plan_verifies_readback_and_replay": true,
+    "equivalent_inviter_profiles_verify": true,
+    "distinct_inviter_profiles_rejected": true,
+    "invalid_inviter_profile_rejected": true,
+    "nonstring_inviter_profile_rejected": true,
     "corrupt_readback_is_rejected": true,
     "optimized_python_rejects_corrupt_readback": true
   }

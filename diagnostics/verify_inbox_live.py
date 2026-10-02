@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from linkedin_mdp_mcp.client import LinkedInMDPClient
-from linkedin_mdp_mcp.inbox_sync import reconcile_inbox
+from linkedin_mdp_mcp.inbox_sync import normalize_profile_url, reconcile_inbox
 from linkedin_mdp_mcp.supabase_client import SupabaseClient
 
 
@@ -133,9 +133,11 @@ async def verify() -> bool:
         _require(bool(outgoing) and all(
             isinstance(row.get("inviterProfileUrl"), str) for row in outgoing
         ))
-        accounts = {row["inviterProfileUrl"].strip().rstrip("/") for row in outgoing}
-        _require(len(accounts) == 1)
+        accounts = {normalize_profile_url(row["inviterProfileUrl"]) for row in outgoing}
+        _require(None not in accounts and len(accounts) == 1)
         account = accounts.pop()
+        if account is None:
+            raise RuntimeError("live inbox verification condition failed")
         snapshot = await linkedin.snapshot("INBOX", max_pages=50, strict_elements=True)
         observed = datetime.now(UTC)
         frozen = FrozenInbox(snapshot)

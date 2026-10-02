@@ -19,5 +19,12 @@
     "passed": true,
     "verdict_artifact": "artifacts/inbox-e2e-evidence.json"
   },
-  "live_persistence": "approved validation found unsupported explicit UTC timestamps; corrected revision awaits live replay"
+  "live_persistence": {
+    "verified_revision": "5cc23814450c14b4a8d3312c682b5f65fa87e22c",
+    "workflow_run": "https://github.com/komaksym/linkedin-mdp/actions/runs/36985062303",
+    "nonempty_expected_events": true,
+    "full_payload_and_timestamp_readback": true,
+    "frozen_snapshot_replay_inserted_zero": true,
+    "passed": true
+  }
 }

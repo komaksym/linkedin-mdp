@@ -149,6 +149,16 @@ def run_matrix() -> dict[str, str]:
     media_event["activity"]["content"]["format"] = "MEDIA"
     media_event["activity"]["attachments"] = [{"id": "synthetic-media-1"}]
     check("exact_media_attachment", len(report([media_row], [media_event])["follow_up"]) == 1)
+    empty_media_row = deepcopy(media_row)
+    empty_media_row["CONTENT"] = ""
+    empty_media_event = deepcopy(media_event)
+    empty_media_event["activity"]["content"]["fallback"] = ""
+    check("attachment_only_empty_content_verified", len(report([empty_media_row], [empty_media_event])["follow_up"]) == 1)
+    omitted_media_row = deepcopy(empty_media_row)
+    omitted_media_row.pop("CONTENT")
+    check("attachment_only_omitted_content_verified", len(report([omitted_media_row], [empty_media_event])["follow_up"]) == 1)
+    empty_text_row = inbox_row(hours=73, content="")
+    check("empty_text_without_attachment_unverified", not report([empty_text_row], [activity(empty_text_row)])["follow_up"])
     wrong_media = deepcopy(media_event)
     wrong_media["activity"]["attachments"] = [{"id": "synthetic-media-2"}]
     check("media_attachment_mismatch", not report([media_row], [wrong_media])["follow_up"])

@@ -137,7 +137,7 @@ def _content(activity: Mapping[str, Any]) -> tuple[str | None, str]:
     if not isinstance(item, Mapping) or item.get("format") not in ("TEXT", "MEDIA") or item.get("formatVersion") != 1:
         return None, "unsupported_content"
     fallback = item.get("fallback")
-    if not isinstance(fallback, str) or not fallback.strip():
+    if not isinstance(fallback, str) or (item["format"] == "TEXT" and not fallback.strip()):
         return None, "unsupported_content"
     nested = item.get("content")
     if nested is not None and (not isinstance(nested, Mapping) or not isinstance(nested.get("string"), str) or nested["string"] != fallback):
@@ -328,7 +328,7 @@ def classify_dm_evidence(
         if kind != "dm" or text is None:
             uncertain.append(DmUnknown(peer, suffix, direction, moment, kind if kind != "dm" else "identity_or_shape_invalid", ref))
             continue
-        candidates = [i for i, (thread, row_peer, row_direction, row_moment) in enumerate(row_meta) if thread == suffix and row_peer == peer and row_direction == direction and row_moment and int(moment.timestamp()) == int(row_moment.timestamp()) and rows[i].get("CONTENT") == text and _attachments(rows[i]) in ({}, {"ATTACHMENTS": activity.get("attachments")}) and (rows[i].get("ATTACHMENTS") or []) == activity.get("attachments")]
+        candidates = [i for i, (thread, row_peer, row_direction, row_moment) in enumerate(row_meta) if thread == suffix and row_peer == peer and row_direction == direction and row_moment and int(moment.timestamp()) == int(row_moment.timestamp()) and rows[i].get("CONTENT", "") == text and _attachments(rows[i]) in ({}, {"ATTACHMENTS": activity.get("attachments")}) and (rows[i].get("ATTACHMENTS") or []) == activity.get("attachments")]
         if len(candidates) != 1 or candidates[0] in matched_rows:
             uncertain.append(DmUnknown(peer, suffix, direction, moment, "ambiguous_correlation", ref))
             continue

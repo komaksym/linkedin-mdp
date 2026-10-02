@@ -1,13 +1,16 @@
 {
   "run_status": "passed",
-  "scenario_count": 61,
+  "scenario_count": 64,
   "verdicts": {
     "ambiguous_correlation": "passed",
+    "attachment_only_empty_content_verified": "passed",
+    "attachment_only_omitted_content_verified": "passed",
     "boolean_epoch": "passed",
     "complete_empty_changelog_without_watermark": "passed",
     "conflicting_replay": "passed",
     "connection_alias_date_conflict_blocks_first_dm": "passed",
     "consistent_replay": "passed",
+    "empty_text_without_attachment_unverified": "passed",
     "equal_second_no_reply": "passed",
     "exact_media_attachment": "passed",
     "first_dm_cited_draft": "passed",

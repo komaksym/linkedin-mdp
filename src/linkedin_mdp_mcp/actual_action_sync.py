@@ -8,7 +8,7 @@ import re
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from linkedin_mdp_mcp.connection_sync import plan_connection_events
@@ -211,6 +211,16 @@ async def sync_actual_actions(linkedin: Any, supabase: Any, *, account_profile_u
             raise ActualSyncError("source_acquisition_failed") from exc
     now = datetime.now(UTC)
     invitations, connections, evidence, digest, invitation_time, connection_time = _validate_sources(sources, account_profile_url=account_profile_url, account_member_urn=account_member_urn, now=now)
+    for row in connections:
+        connected_on = row.get("Connected On")
+        if not isinstance(connected_on, str):
+            continue
+        try:
+            connected_date = date.fromisoformat(connected_on.strip())
+        except ValueError:
+            continue
+        if connected_date > connection_time.date():
+            raise ActualSyncError("connection_date_future")
     try:
         prospects = await supabase.prospect_ids_by_linkedin_key()
     except Exception as exc:

@@ -95,7 +95,7 @@ class Services:
         if self.failure == "inbox_truncated" and domain == "INBOX":
             return httpx.Response(200, json={"elements": [{"snapshotDomain": "INBOX", "snapshotData": self.inbox}], "paging": {"links": [{"rel": "next", "href": "/rest/memberSnapshotData?start=next"}]}})
         rows = {"INVITATIONS": self.invitations, "CONNECTIONS": self.connections, "INBOX": self.inbox}[domain]
-        return httpx.Response(200, json={"elements": [{"snapshotDomain": domain, "snapshotData": rows}]})
+        return httpx.Response(200, content=json.dumps({"elements": [{"snapshotDomain": domain, "snapshotData": rows}]}, ensure_ascii=True).encode("utf-8"))
 
     def store(self, request: httpx.Request) -> httpx.Response:
         """Mimic one paged prospect read and unique(source, external_key) inserts."""
@@ -177,6 +177,13 @@ async def matrix() -> dict[str, str]:
     only_connection = Services(invitations=[], inbox=[], changes=[])
     connection_only_summary = await run_service(only_connection, apply=True)
     check("connection_not_invented_acceptance", connection_only_summary.planned_by_type == {"LINKEDIN_CONNECTION_FOUND": 1} and all(event["event_type"] != "LINKEDIN_INVITATION_ACCEPTED" for event in only_connection.posted[0]))
+    future_connection = Services(connections=[{"URL": PEER, "Connected On": "2099-01-01"}], invitations=[], inbox=[], changes=[])
+    try:
+        await run_service(future_connection, apply=True)
+    except ActualSyncError as exc:
+        check("future_connection_day_blocks_store", exc.code == "connection_date_future" and future_connection.store_gets == 0 and future_connection.store_posts == 0)
+    else:
+        raise AssertionError("future connection day must block before store access")
     no_match = Services(prospects=[])
     unmatched_summary = await run_service(no_match, apply=True)
     check("unmatched_identity_never_created", unmatched_summary.planned_total == 0 and unmatched_summary.unmatched_dm == 2 and no_match.store_posts == 0)
@@ -189,6 +196,11 @@ async def matrix() -> dict[str, str]:
     escaped_key_service.changes.append({"owner": OWNER_URN, "resourceName": "other", "method": "CREATE", "activityStatus": "SUCCESS", "activityId": "unrelated", "provider" + chr(0xD800): "unrelated metadata"})
     escaped_key_result = await run_service(escaped_key_service, apply=True)
     check("escaped_surrogate_metadata_does_not_block_verified_actions", escaped_key_result.inserted == 4 and escaped_key_service.store_posts == 1)
+
+    escaped_snapshot = Services()
+    escaped_snapshot.invitations.append({"Direction": "INCOMING", "inviteeProfileUrl": ACCOUNT, "provider" + chr(0xD800): "unrelated metadata"})
+    snapshot_summary = await run_service(escaped_snapshot, apply=True)
+    check("escaped_unmatched_snapshot_metadata_safe", snapshot_summary.inserted == 4 and escaped_snapshot.store_posts == 1)
 
     for failure in ("invitations_404", "malformed_inbox_envelope", "malformed_connection_paging", "inbox_truncated", "changelog_404", "changelog_truncated"):
         bad = Services(failure=failure)

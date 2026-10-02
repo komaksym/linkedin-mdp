@@ -15,7 +15,7 @@ Rank eligible candidates using observed professional activity, mutual connection
 Group DM recommendations by action:
 
 - Reply when the latest verified inbound LinkedIn message is later than the latest outbound message. Include the relevant message and a reminder to respond. The owner writes the reply.
-- Prepare a researched first-DM draft for a verified accepted connection when complete relevant inbox evidence establishes no prior outbound DM. Ground the opener in saved background research.
+- Prepare a researched first-DM draft for a qualified recent connection when the complete supplied inbox snapshot has no observed prior DM. Ground the opener in saved exact-profile, cited background research and label the bounded history.
 - Follow up when a verified outbound DM is at least 72 hours old and has no later reply. Show elapsed time and read status as a reminder. The owner writes the follow-up. Missing read evidence means unknown. No reply does not prove that the person ignored the message.
 
 Exclude opt-outs and terminal negative responses from automatic follow-up recommendations. Keep LinkedIn and email history separate. Invitation notes must not count as first DMs. Missing, stale, malformed, or truncated sources withhold affected actions instead of producing false empty queues.
@@ -24,10 +24,10 @@ Exclude opt-outs and terminal negative responses from automatic follow-up recomm
 
 The report reads source exports and writes private JSON and Markdown report files. It does not write to Supabase, store recommendations or drafts, or send messages. LinkedIn MDP sync owns persistence of observed real invitations, sent messages, acceptances, and replies. The owner sends every invitation and DM.
 
-Later reviewed slices may classify MDP inbox records into sent and received DMs, derive status from complete observations, include researched first-DM drafts, and show reply or follow-up reminders. A suggested action does not prove that the action happened. Missing or delayed MDP snapshots mean unknown, not not-sent. No reply or follow-up text is generated.
+The private DM report classifies positive sent and received DM evidence, includes researched first-DM drafts, and shows reply or follow-up reminders. A suggested action does not prove that the action happened. Missing or delayed MDP snapshots mean unknown, not not-sent. No reply or follow-up text is generated. See `docs/private-dm-actions.md` for the offline input contract and coverage limits.
 
 ## Current slice and remaining work
 
 PR10 builds a private invitation shortlist with all-history capacity accounting under the latest-known-present employer assumption. It retains exact person identity, current-employer citations, source evidence IDs and pointers, observed invitation date metadata, ranking facts, and explicit unknowns. It does not write report output to Supabase.
 
-The next reviewed slices cover independent MDP action ingestion and status projection, researched first-DM drafts in the private report, incoming reply and due follow-up reminders, and prospect `date_added` visibility from the existing database insertion timestamp. Do not add schema or infrastructure changes without a separately reviewed diff.
+The date-added and private DM report slices read existing sources. Independent MDP action ingestion and status projection remain separate work. Do not add schema or infrastructure changes without a separately reviewed diff.

@@ -667,6 +667,26 @@ def test_complete_snapshot_without_elements_is_valid(domain: str) -> None:
     assert run(source, qualification())["status"] == "ready"
 
 
+@pytest.mark.parametrize("domain", ["CONNECTIONS", "INVITATIONS", "INBOX"])
+def test_complete_snapshot_with_escaped_surrogate_metadata_is_valid(domain: str) -> None:
+    """Unrelated JSON-escaped metadata cannot invalidate matching raw and exported rows."""
+    row = {
+        "CONNECTIONS": {"URL": PROFILE_A, "Connected On": "2026-10-01"},
+        "INVITATIONS": invitation(PROFILE_A),
+        "INBOX": {},
+    }[domain]
+    row["UNRELATED PROVIDER METADATA"] = chr(0xD800)
+    source = source_export(**{domain.lower(): [row]}) if domain != "INBOX" else source_export()
+    if domain == "INBOX":
+        snapshot = source["snapshots"][domain]
+        snapshot["rows"] = [row]
+        snapshot["raw_elements"][0]["snapshotData"] = [row]
+    source = json.loads(json.dumps(source))
+    result = run(source, qualification())
+    assert result["status"] == "ready"
+    assert result["source_counts"][domain.lower()] == 1
+
+
 @pytest.mark.parametrize("key", ["invite sent date", "invite_sent_date", "INVITE SENT DATE"])
 def test_normalized_crm_send_date_retains_binding(key: str) -> None:
     """Every recognized spelling of a CRM date remains outgoing evidence regardless of date proof."""

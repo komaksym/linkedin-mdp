@@ -4,7 +4,7 @@
 
 ## Input completeness
 
-The provider collector must report success, `truncated: false`, and a positive `page_count` for `CONNECTIONS`, `INVITATIONS`, and `INBOX`. `page_count` counts fetched HTTP pages. `raw_elements` retains snapshot elements, so its length can differ from the page count. Its distinct raw row set must equal the collector's exported distinct `rows`; exact duplicate raw elements are allowed.
+The provider collector must report success, `truncated: false`, and a positive `page_count` for `CONNECTIONS`, `INVITATIONS`, and `INBOX`. `page_count` counts fetched HTTP pages. `raw_elements` retains snapshot elements, so its length can differ from the page count. Its distinct raw row set must equal the collector's exported distinct `rows`; exact duplicate raw elements are allowed. Row comparison hashes canonical ASCII-escaped JSON, so JSON-permitted escaped surrogate metadata does not invalidate matching rows.
 
 Supabase `prospects` and `events` envelopes must report success, `truncated: false`, a positive page count, stable consistency metadata, and an exact `row_count`. Source acquisition time must be no more than 24 hours old. Provider generation time stays unknown when the snapshot does not supply it.
 

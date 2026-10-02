@@ -25,8 +25,8 @@
     "optimized_python_rejects_corrupt_readback": false
   },
   "after_fixes": {
-    "scenario_count": 41,
-    "review_scenario_count": 11,
+    "scenario_count": 54,
+    "review_scenario_count": 15,
     "review_verdict_artifact": "artifacts/inbox-review-e2e-evidence.json",
     "passed": true,
     "verdict_artifact": "artifacts/inbox-e2e-evidence.json"
@@ -38,5 +38,16 @@
     "full_payload_and_timestamp_readback": true,
     "frozen_snapshot_replay_inserted_zero": true,
     "passed": true
+  },
+  "before_unicode_identity_fix": {
+    "unicode_profile_identity_persisted": false,
+    "utf8_profile_alias_replay_is_duplicate_free": false,
+    "combining_profile_identity_preserved": false
+  },
+  "before_literal_control_fix": {
+    "literal_tab_profile_rejected": false,
+    "literal_carriage_return_profile_rejected": false,
+    "literal_newline_profile_rejected": false,
+    "literal_leading_nul_profile_rejected": false
   }
 }

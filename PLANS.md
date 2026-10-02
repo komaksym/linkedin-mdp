@@ -98,6 +98,8 @@ Summary: repair the four reported review findings on the verified owning branch,
 - [x] Inviter identity review correction: the real verifier boundary rejected equivalent apex/www/regional profile URLs before the fix. It now canonicalizes every outgoing inviter with the existing strict profile normalizer before cardinality checks, while invalid and distinct identities remain rejected before writes. The expanded 15-scenario review E2E, 21 pytest checks, scoped Ruff, full-source mypy (10 files), and package build pass. No schema, workflow, or schedule changes.
 - [ ] Follow fresh Greptile/CodeRabbit review and CI to merge-ready. Continue one report feature at a time with concrete live artifacts.
 
+- [x] Unicode identity correction: the approved private source export exposed valid non-ASCII profile slugs rejected by the strict normalizer. Three real HTTP-boundary identity/replay cases failed before the correction. Independent review then reproduced silent literal-control removal by URL parsing; four more cases failed before adding the pre-parse guard. The complete inbox suite now has 54 scenarios. Preserve exact code points and equivalent UTF-8 encoding without transliteration. Issue #9 tracks this source-identity gap. Revalidate this revision and follow fresh review before claiming ready.
+
 Throughput checkpoint: root owns client pagination and existing E2E; one repair worker owns inbox content, live verifier and separate E2E files. A read-only worker inventories the next report slice. No shared-file edits or parallel pushes.
 
 ### Live timestamp correction

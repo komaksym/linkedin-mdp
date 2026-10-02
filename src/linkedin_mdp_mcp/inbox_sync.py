@@ -3,11 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 
 class InboxSyncError(RuntimeError):
@@ -47,8 +48,10 @@ _ATTACHMENT_KEY = re.compile(r"attachment", re.IGNORECASE)
 
 
 def normalize_profile_url(value: Any) -> str | None:
-    """Canonicalize a supported LinkedIn member profile URL or reject it."""
+    """Preserve exact Unicode profile identity and canonicalize UTF-8 URL aliases."""
     if not isinstance(value, str) or not value.strip():
+        return None
+    if any(unicodedata.category(char)[0] == "C" for char in value):
         return None
     try:
         parsed = urlsplit(value.strip())
@@ -68,10 +71,21 @@ def normalize_profile_url(value: Any) -> str | None:
         or parts[0]
         or parts[1].lower() != "in"
         or parts[2] in {".", ".."}
-        or not _PROFILE_SLUG.fullmatch(parts[2])
     ):
         return None
-    return f"https://www.linkedin.com/in/{parts[2]}"
+    if re.search(r"%(?![0-9a-fA-F]{2})", parts[2]):
+        return None
+    try:
+        slug = unquote(parts[2], errors="strict")
+    except UnicodeDecodeError:
+        return None
+    if not slug or slug in {".", ".."} or any(
+        not _PROFILE_SLUG.fullmatch(char) if char.isascii()
+        else unicodedata.category(char)[0] not in "LMNS"
+        for char in slug
+    ):
+        return None
+    return f"https://www.linkedin.com/in/{slug}"
 
 
 def _timestamp(value: Any, observed_at: datetime) -> tuple[str, str, str, bool, str] | None:

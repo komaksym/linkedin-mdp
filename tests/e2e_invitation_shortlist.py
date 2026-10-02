@@ -644,7 +644,7 @@ def test_cli_writes_private_outputs_and_sanitized_stdout() -> None:
         markdown = markdown_path.read_text(encoding="utf-8")
         assert "Synthetic Person" in markdown
         assert f"Date added: {created_at}" in markdown
-        assert "prospects.rows[0].created_at" in markdown
+        assert "source: prospects.rows[0].created_at; prospect: tracked-a; reason: none" in markdown
         assert not any(name in process.stdout for name in ("Synthetic Person", PROFILE_A))
         digest_input = dict(report)
         digest = digest_input.pop("output_digest")
@@ -680,6 +680,8 @@ def test_date_added_uses_exact_canonical_source_match_and_never_changes_ranking(
     [
         (None, "missing"),
         (42, "invalid_timestamp"),
+        ("0001-01-01T00:00:00+01:00", "invalid_timestamp"),
+        ("9999-12-31T23:59:59-01:00", "invalid_timestamp"),
         ("not-a-timestamp", "invalid_timestamp"),
         ("2026-09-30T14:12:13", "invalid_timestamp"),
         ("2026-10-03T00:00:00Z", "future_timestamp"),

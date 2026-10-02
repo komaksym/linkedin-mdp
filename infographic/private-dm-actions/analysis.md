@@ -1,0 +1,1 @@
+Technical system infographic for the read-only DM evidence and action-report slice. Show shared positive classification feeding three private queues, preserving uncertainty and manual sends. Technical default structural-breakdown, technical-schematic,16:9,English,native imagegen. No person data or outcome counts.

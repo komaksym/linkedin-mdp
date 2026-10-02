@@ -37,7 +37,7 @@ EXPECTED_FAILURES: dict[str, tuple[type[Exception], str]] = {
     "change_wrong_endpoint": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed endpoint"),
     "change_wrong_q": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed request scope"),
     "change_bad_next": (LinkedInAPIError, "LinkedIn API error 0: malformed changelog paging link"),
-    **{case: (RuntimeError, "private source collection failed") for case in ("db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate", "change_bad_event", "change_no_watermark", "change_zero_watermark", "change_negative_watermark", "change_boolean_watermark", "change_truncated")},
+    **{case: (RuntimeError, "private source collection failed") for case in ("db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate", "change_bad_event", "change_no_watermark", "change_zero_watermark", "change_negative_watermark", "change_boolean_watermark", "change_truncated", "auth_missing", "auth_multiple", "auth_malformed", "auth_wrong_prefix")},
 }
 
 async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, list[str]]:
@@ -46,6 +46,18 @@ async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, l
     def provider(request: httpx.Request) -> httpx.Response:
         """Provide valid source pages and one specific completeness defect."""
         methods.append(request.method)
+        if request.url.path == "/rest/memberAuthorizations":
+            member = "urn:li:person:synthetic-member-493829"
+            elements: list[Any] = [{"memberComplianceAuthorizationKey": {"member": member}}]
+            if case == "auth_missing":
+                elements = []
+            if case == "auth_multiple":
+                elements.append({"memberComplianceAuthorizationKey": {"member": "urn:li:person:second-synthetic"}})
+            if case == "auth_malformed":
+                elements = [{"memberComplianceAuthorizationKey": {"member": 42}}]
+            if case == "auth_wrong_prefix":
+                elements = [{"memberComplianceAuthorizationKey": {"member": "urn:li:organization:synthetic"}}]
+            return httpx.Response(200, json={"elements": elements})
         if request.url.path == "/rest/memberChangeLogs":
             if case == "change_bad_envelope":
                 return httpx.Response(200, json={"paging": {"links": []}})
@@ -154,6 +166,7 @@ async def main(evidence: Path | None = None) -> None:
         changelog = bundle.get("changelog", {})
         change_events = changelog.get("events")
         verdicts["complete_sources_roundtrip"] = bool(encrypted) and len(prospects) == 2 and len(bundle.get("events", {}).get("rows", [])) == 2 and set(bundle.get("snapshots", {})) == {"CONNECTIONS", "INVITATIONS", "INBOX"}
+        verdicts["account_member_urn_roundtrip"] = bundle.get("account_member_urn") == "urn:li:person:synthetic-member-493829"
         times = [datetime.fromisoformat(changelog[key]) for key in ("attempted_at", "completed_at", "collected_at")] if all(isinstance(changelog.get(key), str) for key in ("attempted_at", "completed_at", "collected_at")) else []
         verdicts["changelog_raw_events_and_acquisition_timestamps"] = change_events == [{"processedAt": 1710000000, "changeType": "SYNTHETIC", "opaque": {"keep": [1, "two"]}}] and len(times) == 3 and run_started <= times[0] <= times[1] <= times[2] <= run_completed and changelog.get("provider_generated_at") is None and changelog.get("upstream_freshness") == "unknown"
         verdicts["changelog_complete_watermark"] = changelog.get("next_start_time") == 1710000000 and changelog.get("source_result") == "success" and changelog.get("truncated") is False and type(changelog.get("page_count")) is int and changelog["page_count"] > 0

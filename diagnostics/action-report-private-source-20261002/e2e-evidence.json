@@ -3,6 +3,7 @@
   "run_status": "passed",
   "scenarios": {
     "complete_sources_roundtrip": true,
+    "account_member_urn_roundtrip": true,
     "changelog_raw_events_and_acquisition_timestamps": true,
     "changelog_complete_watermark": true,
     "changelog_valid_pagination_preserves_scope_and_events": true,
@@ -31,6 +32,10 @@
     "change_negative_watermark_rejected_without_artifact": true,
     "change_boolean_watermark_rejected_without_artifact": true,
     "change_truncated_rejected_without_artifact": true,
+    "auth_missing_rejected_without_artifact": true,
+    "auth_multiple_rejected_without_artifact": true,
+    "auth_malformed_rejected_without_artifact": true,
+    "auth_wrong_prefix_rejected_without_artifact": true,
     "unexpected_failure_not_counted_as_rejection": true,
     "encryption_failure_not_counted_as_rejection": true,
     "cli_fixed_success_log_without_plaintext": true,

@@ -65,6 +65,14 @@ async def read_table(store: SupabaseClient, table: str, *, page_size: int, max_p
 async def collect_sources(linkedin: LinkedInMDPClient, store: SupabaseClient, *, page_size: int = 500, max_db_pages: int = 200, snapshot_pages: int = 50, changelog_pages: int = 50) -> dict[str, Any]:
     """Collect strict snapshots, changelog, and existing tables with no writes."""
     require(1 <= page_size <= 1000 and 1 <= max_db_pages <= 200 and 1 <= snapshot_pages <= 50 and 1 <= changelog_pages <= 50)
+    authorizations = await linkedin.authorization_status()
+    elements = authorizations.get("elements") if isinstance(authorizations, dict) else None
+    if not isinstance(elements, list) or len(elements) != 1:
+        raise RuntimeError("private source collection failed")
+    authorization = elements[0]
+    identity = authorization.get("memberComplianceAuthorizationKey") if isinstance(authorization, dict) else None
+    account_member_urn = identity.get("member") if isinstance(identity, dict) else None
+    require(isinstance(account_member_urn, str) and account_member_urn.startswith("urn:li:person:") and len(account_member_urn) > len("urn:li:person:"))
     snapshots: dict[str, Any] = {}
     for domain in DOMAINS:
         started = datetime.now(UTC).isoformat()
@@ -104,7 +112,7 @@ async def collect_sources(linkedin: LinkedInMDPClient, store: SupabaseClient, *,
     tables = {}
     for table in TABLE_COLUMNS:
         tables[table] = await read_table(store, table, page_size=page_size, max_pages=max_db_pages)
-    return {"schema_version": 1, "base_revision": BASE_REVISION, "collected_at": datetime.now(UTC).isoformat(), "snapshots": snapshots, "changelog": changelog, **tables}
+    return {"schema_version": 1, "base_revision": BASE_REVISION, "collected_at": datetime.now(UTC).isoformat(), "account_member_urn": account_member_urn, "snapshots": snapshots, "changelog": changelog, **tables}
 
 
 def encrypt_bundle(bundle: dict[str, Any], certificate: Path, output: Path) -> None:

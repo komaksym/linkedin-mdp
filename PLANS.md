@@ -106,6 +106,10 @@ Validation before commit: the regression against the original client failed with
 
 ## Inbox evidence sync
 
+### Live timestamp correction
+
+The approved credentialed validation reproduced zero planned events. Read-only diagnostics confirmed supported prospect identities and mapped rows whose dates use `YYYY-MM-DD HH:MM:SS UTC`. The ISO-only parser rejected that format. Two new HTTP-boundary persistence/replay assertions failed before changing parsing; the correction accepts only the exact explicit UTC format. Unknown abbreviations, conflicting offsets, invalid calendar dates, and naive timestamp semantics remain covered. The suite now has 39 scenarios. Revalidate lint, types, tests, build, and actual persistence/readback/replay before claiming the slice works live.
+
 ### Contract
 
 - Read complete MDP INBOX snapshots through strict element and paging validation before any store write. Preserve no-read-receipt semantics as unknown.

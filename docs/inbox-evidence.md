@@ -15,3 +15,5 @@ The E2E runner uses synthetic LinkedIn and Supabase HTTP transports. Run `uv run
 `diagnostics/verify_inbox_live.py` is the prepared live validation utility. It uses complete outgoing invitation evidence to establish the account identity, captures one real INBOX snapshot, applies it through the production writer, reads back every expected event body, and replays that same captured snapshot. It verifies no duplicate inserts and unchanged persisted facts, including earlier observation timestamps for existing naive-time records. Its output contains fixed verdicts only. It needs the trusted runtime credentials; no live run or database write is claimed by the synthetic evidence.
 
 The complete report requirements and remaining milestones are recorded in [Actionable LinkedIn report](action-report-contract.md).
+
+The live provider also supplies `YYYY-MM-DD HH:MM:SS UTC` timestamps. This exact format has explicit UTC semantics and is stored as actual provider time. Other timezone abbreviations and conflicting offset-plus-abbreviation forms remain unsupported; they are never assigned an assumed timezone.

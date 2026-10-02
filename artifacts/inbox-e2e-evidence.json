@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "scenario_count": 39,
+  "scenario_count": 41,
   "scenarios": {
     "all_snapshot_links_validated": true,
     "ambiguous_suffixed_timestamps_rejected": true,
@@ -27,6 +27,7 @@
     "naive_time_keeps_timezone_unspecified": true,
     "outbound_persisted": true,
     "page_cap_blocks_before_write": true,
+    "partial_next_link_retains_snapshot_scope": true,
     "prospect_alias_collision_skipped": true,
     "provider_string_recipients_supported": true,
     "provider_utc_suffix_persisted": true,
@@ -35,6 +36,7 @@
     "self_message_skipped": true,
     "self_message_taints_entire_thread": true,
     "snapshot_metadata_rejected": true,
+    "snapshot_pagination_scope_cannot_change": true,
     "store_failure_is_reported": true,
     "strict_profile_identity": true,
     "subject_variants_keep_distinct_identity": true,
@@ -42,5 +44,5 @@
     "unknown_peer_skipped": true,
     "writes_are_opt_in": true
   },
-  "source_revision": "64d64ea76db9a368399e59fc9a1ced7cc1cf570c+working-tree"
+  "source_revision": "0893b72ed9db5de447903dfe7f596b628b104b44+working-tree"
 }

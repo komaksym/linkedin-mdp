@@ -14,8 +14,17 @@
     "provider_utc_suffix_persisted": false,
     "provider_utc_suffix_replay_is_idempotent": false
   },
+  "before_review_repairs": {
+    "snapshot_pagination_scope_cannot_change": false,
+    "partial_next_link_retains_snapshot_scope": false,
+    "missing_content_with_attachment_persists": false,
+    "empty_plan_live_verifier_succeeds": false,
+    "empty_plan_reports_empty_result": false
+  },
   "after_fixes": {
-    "scenario_count": 39,
+    "scenario_count": 41,
+    "review_scenario_count": 8,
+    "review_verdict_artifact": "artifacts/inbox-review-e2e-evidence.json",
     "passed": true,
     "verdict_artifact": "artifacts/inbox-e2e-evidence.json"
   },

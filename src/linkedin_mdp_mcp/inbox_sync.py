@@ -235,7 +235,7 @@ def plan_inbox_events(
         if prospect_id is None or peer in conflicted_prospects:
             skip("unknown_prospect")
             continue
-        content = row.get("CONTENT")
+        content = row.get("CONTENT", "")
         subject_value = row.get("SUBJECT")
         subject: str = subject_value if isinstance(subject_value, str) else ""
         attachments = _attachments(row)

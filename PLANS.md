@@ -86,6 +86,18 @@ Validation before commit: the regression against the original client failed with
 
 ## Inbox evidence sync
 
+### PR 8 review repair
+
+Summary: repair the four reported review findings on the verified owning branch, then babysit the latest GitHub verdict. Preserve the complete report as the next authorized work after this prerequisite.
+
+- [x] Reproduced endpoint/domain pagination escape before the client correction; reject changed scope before any database access, retain valid partial pagination links within the original request scope.
+- [x] Reproduced missing-content attachment loss and valid empty-plan verifier failure; keep null/nonstring content invalid and distinguish empty verification from persisted-event proof. The new review runner also fails against original revision `0893b72` and passes against the repair.
+- [x] Aligned live-validation documentation with recorded evidence and remaining report work. The report contract already reflected successful live verification.
+- [ ] Local validation and independent review passed: 41 inbox scenarios, 8 review scenarios, 32 report scenarios, 21 pytest checks, lint, types, and build. Publish one fix wave and answer the four threads with evidence.
+- [ ] Follow fresh Greptile/CodeRabbit review and CI to merge-ready. Continue one report feature at a time with concrete live artifacts.
+
+Throughput checkpoint: root owns client pagination and existing E2E; one repair worker owns inbox content, live verifier and separate E2E files. A read-only worker inventories the next report slice. No shared-file edits or parallel pushes.
+
 ### Live timestamp correction
 
 The approved credentialed validation reproduced zero planned events. Read-only diagnostics confirmed supported prospect identities and mapped rows whose dates use `YYYY-MM-DD HH:MM:SS UTC`. The ISO-only parser rejected that format. Two new HTTP-boundary persistence/replay assertions failed before changing parsing; the correction accepts only the exact explicit UTC format. Unknown abbreviations, conflicting offsets, invalid calendar dates, and naive timestamp semantics remain covered. The suite now has 39 scenarios. Revalidate lint, types, tests, build, and actual persistence/readback/replay before claiming the slice works live.

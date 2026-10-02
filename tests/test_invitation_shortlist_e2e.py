@@ -52,6 +52,7 @@ def test_invitation_shortlist_e2e() -> None:
             "read-only report constructed a recommendation persistence event",
             "invalid canonical employer aliases left contradictory resolved audit entries",
             "distinct invalid employer identity keys collapsed without source pointers",
+            "unpaired Unicode employer keys failed before unresolved queue recording",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

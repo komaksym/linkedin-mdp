@@ -849,3 +849,16 @@ def test_invalid_employer_identity_keys_keep_distinct_private_queue_pointers() -
     }
     assert "linkedin.com.evil.test" not in json.dumps(queued)
     assert result["status"] == "withheld_current_employer_assignments"
+
+
+@pytest.mark.parametrize("codepoint", [0xD800, 0xDFFF])
+def test_unpaired_unicode_employer_keys_are_queued_without_encoding_failure(codepoint: int) -> None:
+    """JSON-permitted unpaired surrogates stay unresolved and retain safe opaque pointers."""
+    key = "https://www.linkedin.com/in/invalid-" + chr(codepoint)
+    employers = {PROFILE_A: {"company_id": "co-a", "citations": [citation("employer-a")]}, key: None}
+    result = run(source_export(), qualification(current_employers=employers))
+    queued = [item for item in result["research_queue"] if item["reason"] == "current_employer_identity_invalid"]
+    assert len(queued) == 1
+    assert queued[0]["evidence_id"].startswith("current-employer-key-sha256:")
+    assert result["status"] == "withheld_current_employer_assignments"
+    json.dumps(result, ensure_ascii=False).encode("utf-8")

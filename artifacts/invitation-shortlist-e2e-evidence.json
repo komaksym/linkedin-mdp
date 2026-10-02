@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 75,
+  "scenario_count": 82,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -19,7 +19,9 @@
     "conflicting canonical current-employer assignments permitted capacity claims",
     "candidate qualification employer disagreed with owner mapping",
     "unknown historical identity omitted from global withhold queue",
-    "read-only report constructed a recommendation persistence event"
+    "read-only report constructed a recommendation persistence event",
+    "invalid canonical employer aliases left contradictory resolved audit entries",
+    "distinct invalid employer identity keys collapsed without source pointers"
   ],
-  "artifact_digest": "afbef3b90517c3d978d4d9b3453d3aa66cf16bbed6f663ca4e44852dcb6083eb"
+  "artifact_digest": "0f66a3f3655297f3b08aba8e3d17cf98098e9223cff47f7f7187c4679ead90da"
 }

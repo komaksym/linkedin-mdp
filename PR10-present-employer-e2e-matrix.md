@@ -23,3 +23,7 @@ Run `uv run --cache-dir /private/tmp/action-report-uv-cache --extra dev pytest -
 ## Green verification
 
 The revised matrix passes75 scenarios plus its artifact wrapper. Parent full suite passes22 checks; scoped strict Ruff, mypy over12 source files, and wheel/source distribution builds pass. Private real-source CLI returns an explicit unresolved current-employer queue under the empty qualification envelope, without event plans or database access. Outputs retain0700/0600 permissions. No live shortlist eligibility or finished report publication is claimed.
+
+## Review correction
+
+Greptile found a valid canonical employer assignment could remain in audit after an invalid alias queued that same person. Six cases covering malformed assignment, unknown company and missing citations in both orders failed before the correction. Every queued exact profile now loses its resolved assignment and capacity attribution. CodeRabbit found two distinct unsupported employer identity keys collapsed into one queue item; a dedicated scenario reproduced that loss before the correction. Each employer key now has a stable opaque evidence ID and input key index pointer. All82 scenarios plus the wrapper,22 full-suite checks, scoped Ruff,12-file mypy and builds pass. The existing raster diagram still describes these unknown-handling guards accurately.

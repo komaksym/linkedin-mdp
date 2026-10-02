@@ -50,6 +50,8 @@ def test_invitation_shortlist_e2e() -> None:
             "candidate qualification employer disagreed with owner mapping",
             "unknown historical identity omitted from global withhold queue",
             "read-only report constructed a recommendation persistence event",
+            "invalid canonical employer aliases left contradictory resolved audit entries",
+            "distinct invalid employer identity keys collapsed without source pointers",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

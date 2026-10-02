@@ -12,6 +12,10 @@ Data shape under test: `current_employers` maps raw LinkedIn profile URL keys to
 | Historical invitation has unsupported identity or absent/unregistered mapping | Withhold the global shortlist and retain an explicit queue item. |
 | Recommendation report is built | No recommendation event plan or persistence key is emitted. |
 | Existing sent/accepted/connectivity/suppression, ranking, exact identity, and transport freshness rules | Preserve prior behavior. |
+| Valid source `created_at` with timezone and fractional seconds | Preserve the exact value with prospect ID and source pointer in JSON and Markdown. |
+| Missing, null, wrong-type, malformed, timezone-naive, or future `created_at` | Render unknown, retain only safe pointer/ID for one unique source row, and do not leak invalid values. |
+| Canonical profile URL alias or qualification-provided `date_added` | Join the source row canonically; ignore qualification timestamp and preserve eligibility/ranking. |
+| No unique source prospect row | Keep date and provenance unknown; preserve existing identity-withhold behavior. |
 
 ## Red-first evidence
 

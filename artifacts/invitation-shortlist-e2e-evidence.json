@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "scenario_count": 113,
+  "scenario_count": 91,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -33,4 +34,10 @@
     "private legacy CLI happy case wrote a withheld report"
   ],
   "artifact_digest": "2922acbc5e96eb7c0af44a58998f35a19d092dfe4a37ef4681930d75a1f8709c"
+    "report omitted a valid exact-profile prospect creation timestamp",
+    "invalid or future creation timestamps were not withheld as unknown",
+    "creation timestamp or qualification spoof changed ranking or membership",
+    "private Markdown omitted creation-time provenance"
+  ],
+  "artifact_digest": "e0a8e75d365c976d74eaacf1e845d862e83a574b78929a6d807bebc509d49e8c"
 }

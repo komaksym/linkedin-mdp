@@ -76,6 +76,10 @@ def test_invitation_shortlist_e2e() -> None:
             "legacy audit evidence remained unresolved despite a unique provider match",
             "resolved legacy identity retained unsupported rather than missing-employer reasons",
             "private legacy CLI happy case wrote a withheld report",
+            "report omitted a valid exact-profile prospect creation timestamp",
+            "invalid or future creation timestamps were not withheld as unknown",
+            "creation timestamp or qualification spoof changed ranking or membership",
+            "private Markdown omitted creation-time provenance",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

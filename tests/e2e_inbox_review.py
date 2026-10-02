@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
+import subprocess
+import sys
 from contextlib import redirect_stdout
+from copy import deepcopy
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -69,10 +72,10 @@ async def reconcile(rows: list[dict[str, Any]]) -> tuple[Any, list[dict[str, Any
     return result, writes
 
 
-async def verify_empty_plan() -> tuple[str, list[dict[str, Any]], int]:
-    """Run the live verifier against complete pages with no mapped inbox peers."""
+async def verify_live_plan(*, empty: bool = True, corrupt: bool = False) -> tuple[str, list[dict[str, Any]], int]:
+    """Run real verifier HTTP boundaries with empty, persisted, or corrupt evidence."""
     writes: list[dict[str, Any]] = []
-    reads = 0
+    persisted: dict[str, dict[str, Any]] = {}
 
     def provider(request: httpx.Request) -> httpx.Response:
         """Serve one complete invitation and inbox page."""
@@ -84,13 +87,21 @@ async def verify_empty_plan() -> tuple[str, list[dict[str, Any]], int]:
         return httpx.Response(200, json={"elements": [{"snapshotDomain": domain, "snapshotData": data}]})
 
     def database(request: httpx.Request) -> httpx.Response:
-        """Count event writes and serve an empty prospects table."""
-        nonlocal reads
+        """Serve exact prospect mappings and duplicate-safe, optionally corrupt events."""
+        if request.url.path.endswith("/prospects"):
+            return httpx.Response(200, json=[] if empty else [{"id": "p1", "linkedin_url_key": PEER}])
         if request.method == "POST":
-            writes.extend(json.loads(request.content))
-            return httpx.Response(201, json=[])
-        reads += 1
-        return httpx.Response(200, json=[])
+            inserted = []
+            for event in json.loads(request.content):
+                if event["external_key"] not in persisted:
+                    writes.append(event)
+                    saved = deepcopy(event)
+                    if corrupt:
+                        saved["payload"]["content"] = "corrupt synthetic evidence"
+                    persisted[event["external_key"]] = saved
+                    inserted.append(saved)
+            return httpx.Response(201, json=inserted)
+        return httpx.Response(200, json=list(persisted.values()))
 
     linkedin = LinkedInMDPClient("synthetic", http=httpx.AsyncClient(transport=httpx.MockTransport(provider)))
     configured = SupabaseClient("https://db.example.test", "synthetic")
@@ -128,14 +139,33 @@ async def main() -> None:
     verdicts["nonstr_content_rejected"] = result.planned_events == 0 and not writes
     result, writes = await reconcile([row(CONTENT="")])
     verdicts["empty_string_attachment_persists"] = result.planned_events == 1 and len(writes) == 1
-    line, writes, code = await verify_empty_plan()
+    line, writes, code = await verify_live_plan()
     verdicts["empty_plan_live_verifier_succeeds"] = code == 0
     verdicts["empty_plan_reports_empty_result"] = line == "live inbox evidence: empty result and duplicate-free replay verified"
     verdicts["empty_plan_makes_no_writes"] = not writes
+    line, writes, code = await verify_live_plan(empty=False)
+    verdicts["nonempty_plan_verifies_readback_and_replay"] = (
+        code == 0 and len(writes) == 1
+        and line == "live inbox evidence: persistence and duplicate-free replay verified"
+    )
+    line, _, code = await verify_live_plan(empty=False, corrupt=True)
+    verdicts["corrupt_readback_is_rejected"] = code == 1 and line == "live inbox evidence: verification failed"
+    optimized = await asyncio.to_thread(
+        subprocess.run,
+        [sys.executable, "-O", str(Path(__file__).resolve()), "--corrupt-verifier"],
+        capture_output=True, text=True, check=False,
+    )
+    verdicts["optimized_python_rejects_corrupt_readback"] = (
+        optimized.returncode == 1 and optimized.stdout.strip() == "live inbox evidence: verification failed"
+    )
     target = Path(__file__).resolve().parents[1] / "artifacts" / "inbox-review-e2e-evidence.json"
     target.write_text(json.dumps({"scenarios": verdicts}, indent=2) + "\n")
     assert all(verdicts.values()), verdicts
 
 
 if __name__ == "__main__":
+    if "--corrupt-verifier" in sys.argv:
+        line, _, code = asyncio.run(verify_live_plan(empty=False, corrupt=True))
+        print(line)
+        raise SystemExit(code)
     asyncio.run(main())

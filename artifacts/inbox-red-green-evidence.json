@@ -21,9 +21,12 @@
     "empty_plan_live_verifier_succeeds": false,
     "empty_plan_reports_empty_result": false
   },
+  "before_optimized_verifier_fix": {
+    "optimized_python_rejects_corrupt_readback": false
+  },
   "after_fixes": {
     "scenario_count": 41,
-    "review_scenario_count": 8,
+    "review_scenario_count": 11,
     "review_verdict_artifact": "artifacts/inbox-review-e2e-evidence.json",
     "passed": true,
     "verdict_artifact": "artifacts/inbox-e2e-evidence.json"

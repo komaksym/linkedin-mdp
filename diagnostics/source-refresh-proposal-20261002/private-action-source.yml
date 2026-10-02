@@ -1,0 +1,54 @@
+name: PROPOSAL ONLY - Refresh Encrypted Action Report Source Runtime
+on:
+  push:
+    branches: [PROPOSAL_BRANCH_REQUIRES_EXPLICIT_OPERATOR_REVIEW]
+    paths: [diagnostics/source-refresh-proposal-20261002/private-action-source.yml]
+permissions:
+  contents: read
+jobs:
+  collect:
+    if: github.ref == 'refs/heads/PROPOSAL_BRANCH_REQUIRES_EXPLICIT_OPERATOR_REVIEW'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: connections-reconciliation
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: proposal
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          # Replace only with the reviewed, immutable collector commit.
+          ref: PINNED_NEW_COLLECTOR_COMMIT_REQUIRED
+          persist-credentials: false
+          path: runtime
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: '0.12.18'
+          python-version: '3.12'
+          enable-cache: false
+      - name: Install pinned read-only runtime
+        working-directory: runtime
+        run: uv sync --no-dev
+      - name: Collect and encrypt private source
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+          LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+          SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PYTHONPATH: runtime/src
+        run: >-
+          runtime/.venv/bin/python
+          proposal/diagnostics/action-report-private-source-20261002/collect_private_source.py
+          --certificate proposal/diagnostics/action-report-private-source-20261002/recipient-cert.pem
+          --output encrypted-source/source.cms
+      - name: Retain encrypted source only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: encrypted-action-report-source
+          path: encrypted-source/source.cms
+          retention-days: 1
+          if-no-files-found: error

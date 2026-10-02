@@ -1,5 +1,15 @@
 # Implementation plans
 
+## Private source changelog acquisition
+
+Summary: include the existing read-only LinkedIn member changelog response in the encrypted private source bundle, with actual collector observation timestamps and an explicitly unknown provider freshness. Preserve each raw provider event exactly and accept a null watermark only for a complete empty response.
+
+Failure cases to prove before implementation: (1) successful nonempty events are omitted or modified, (2) collector timestamps are absent or derived from provider event timestamps, (3) a complete empty response with a null watermark is rejected, (4) a nonempty response with a null watermark, zero/negative/boolean watermark is accepted, (5) malformed/missing envelope fields, malformed event entries, wrong-endpoint or wrong-query next links, malformed next links, or page-limit truncation are accepted, (6) valid pagination loses its original request scope, and (7) any failure creates an encrypted artifact. The collector must use only GETs and preserve the existing `created_at` projection and encrypted-only handling.
+
+Milestones: (1) extend the synthetic HTTP/CMS E2E and run it red against the current collector, (2) add strict changelog acquisition to the collector, (3) rerun the E2E and narrow lint/typecheck/tests/build, and (4) prepare an inactive workflow refresh proposal outside `.github/workflows` for review.
+
+Validation: the expanded E2E first failed on omitted changelog events/timestamps, empty watermark metadata, malformed events, missing and invalid watermarks, wrong endpoint/query pagination links, malformed next links, truncation, and lost query scope on valid pagination. It now passes all cases, including no artifact on collection failure and unchanged `created_at` checks. Mypy, the full 21-test suite, and package build pass in the declared `uv` environment. Ruff passes on touched source with pre-existing `UP037` in unchanged `client.py:62` excluded. System Python lacked the declared MCP client export and `build` module, so validation used `uv`.
+
 ## Private prospect creation timestamp
 
 Summary: export the existing `prospects.created_at` field in the encrypted private source bundle, preserving its provider value without deriving or backfilling dates.

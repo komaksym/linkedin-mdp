@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: af41b3584ab1ddf596114ba13ff903a9ed90e2fd
+          ref: c29b06ffaa850514d8c8347f407cb1514d4f3ae9
           persist-credentials: false
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
         with:

@@ -1,0 +1,1 @@
+Technical system scope: existing Supabase insertion timestamp through approved collector to private invitation report. Presentation metadata does not change priority, eligibility or capacity. English structural-breakdown, technical-schematic, landscape16:9, native imagegen; saved backend auto. No live database verification or invented sample rows.

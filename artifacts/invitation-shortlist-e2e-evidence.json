@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 84,
+  "scenario_count": 91,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -22,7 +22,11 @@
     "read-only report constructed a recommendation persistence event",
     "invalid canonical employer aliases left contradictory resolved audit entries",
     "distinct invalid employer identity keys collapsed without source pointers",
-    "unpaired Unicode employer keys failed before unresolved queue recording"
+    "unpaired Unicode employer keys failed before unresolved queue recording",
+    "report omitted a valid exact-profile prospect creation timestamp",
+    "invalid or future creation timestamps were not withheld as unknown",
+    "creation timestamp or qualification spoof changed ranking or membership",
+    "private Markdown omitted creation-time provenance"
   ],
-  "artifact_digest": "91cc573c9ae233edf80aa98a3932dd7f897c27e832fc33ba2393a51edcd081e1"
+  "artifact_digest": "e0a8e75d365c976d74eaacf1e845d862e83a574b78929a6d807bebc509d49e8c"
 }

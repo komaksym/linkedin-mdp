@@ -429,6 +429,46 @@ def _source_profile_index(prospects: Sequence[Mapping[str, Any]]) -> tuple[dict[
     return ids_by_url, conflicts
 
 
+def _date_added(
+    profile_url: str,
+    prospects: Sequence[Mapping[str, Any]],
+    now: datetime,
+) -> dict[str, Any]:
+    """Enrich one report row from a unique exact-profile prospect creation timestamp."""
+    canonical_url = normalize_profile_url(profile_url)
+    matches = [
+        (index, row)
+        for index, row in enumerate(prospects)
+        if normalize_profile_url(row.get("linkedin_url")) == canonical_url
+    ] if canonical_url else []
+    if len(matches) != 1:
+        reason = "missing" if not matches else "source_identity_ambiguous"
+        return {
+            "date_added": None,
+            "date_added_source": {"prospect_id": None, "source_ref": None, "reason": reason},
+        }
+
+    index, row = matches[0]
+    provenance = {
+        "prospect_id": row.get("id"),
+        "source_ref": f"prospects.rows[{index}].created_at",
+        "reason": None,
+    }
+    value = row.get("created_at")
+    if value is None:
+        provenance["reason"] = "missing"
+        return {"date_added": None, "date_added_source": provenance}
+    try:
+        parsed = _timestamp(value, "source_created_at_invalid")
+    except ShortlistInputError:
+        provenance["reason"] = "invalid_timestamp"
+        return {"date_added": None, "date_added_source": provenance}
+    if parsed > now:
+        provenance["reason"] = "future_timestamp"
+        return {"date_added": None, "date_added_source": provenance}
+    return {"date_added": value, "date_added_source": provenance}
+
+
 def _stable_hash(value: Any) -> str:
     """Return a deterministic opaque identifier for a JSON value."""
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -730,6 +770,10 @@ def _make_markdown(result: Mapping[str, Any]) -> str:
                 "",
                 f"Reason: {item['reason']}.",
                 "",
+                f"Date added: {item['date_added'] or 'unknown'} "
+                f"(source: {item['date_added_source']['source_ref'] or 'unknown'}; "
+                f"reason: {item['date_added_source']['reason'] or 'none'}).",
+                "",
                 f"Action: {item['action']}.",
                 "",
                 "Factors: " + ", ".join(f"{name}={json.dumps(value['value'])}" for name, value in item["score_factors"].items()) + ("; unknown: " + ", ".join(item["unknown_factors"]) if item["unknown_factors"] else ""),
@@ -973,6 +1017,8 @@ def build_invitation_shortlist(
         slots = remaining_slots
     research_queue.sort(key=lambda item: (item.get("evidence_id", ""), item["reason"]))
     rows_out = [_candidate_json(item) for item in selected]
+    for row in rows_out:
+        row.update(_date_added(row["profile_url"], prospects, now))
     company_usage: dict[str, dict[str, Any]] = {}
     for company_id in sorted(registry):
         usage: dict[str, Any] = {

@@ -53,6 +53,10 @@ def test_invitation_shortlist_e2e() -> None:
             "invalid canonical employer aliases left contradictory resolved audit entries",
             "distinct invalid employer identity keys collapsed without source pointers",
             "unpaired Unicode employer keys failed before unresolved queue recording",
+            "report omitted a valid exact-profile prospect creation timestamp",
+            "invalid or future creation timestamps were not withheld as unknown",
+            "creation timestamp or qualification spoof changed ranking or membership",
+            "private Markdown omitted creation-time provenance",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

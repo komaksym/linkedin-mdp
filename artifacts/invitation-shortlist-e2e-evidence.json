@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "scenario_count": 47,
+  "all_scenarios_passed": true,
+  "red_first_failures_reproduced": [
+    "provider-local invitation dates lost to ISO-only parsing",
+    "observation timestamps misused as invitation dates",
+    "raw-only provider invitations omitted from exported rows",
+    "history rows without event IDs collapsed to one event",
+    "duplicate prospect IDs allowed event identity misattachment",
+    "CRM-only policy permitted for an all-history report"
+  ],
+  "artifact_digest": "173ecb5895d11afba45a4d7e469ee78263b943261b7084a6e003274f8c626be4"
+}

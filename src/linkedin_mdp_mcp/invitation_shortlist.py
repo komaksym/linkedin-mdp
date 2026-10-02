@@ -234,37 +234,44 @@ def _current_employers(
     """Validate cited latest-employer assignments and queue unresolved exact identities."""
     assignments: dict[str, CurrentEmployer] = {}
     queue: list[dict[str, Any]] = []
-    for raw_url, raw_assignment in _object(value, "current_employers_invalid").items():
+    for index, (raw_url, raw_assignment) in enumerate(_object(value, "current_employers_invalid").items()):
         profile_url = normalize_profile_url(raw_url)
+        evidence_id = f"current-employer-key-sha256:{_stable_hash(raw_url)}"
+        pointer = {
+            "evidence_id": evidence_id,
+            "opaque_recipient_id": evidence_id,
+            "source_ref": f"qualification.current_employers.keys[{index}]",
+            "profile_url": profile_url,
+        }
         if profile_url is None:
-            queue.append({"profile_url": None, "reason": "current_employer_identity_invalid"})
+            queue.append({**pointer, "reason": "current_employer_identity_invalid"})
             continue
         if not isinstance(raw_assignment, Mapping):
-            queue.append({"profile_url": profile_url, "reason": "current_employer_assignment_invalid"})
+            queue.append({**pointer, "reason": "current_employer_assignment_invalid"})
             continue
         assignment = raw_assignment
         company_id = assignment.get("company_id")
         if not isinstance(company_id, str) or company_id not in registry:
-            queue.append({"profile_url": profile_url, "reason": "current_employer_unregistered"})
+            queue.append({**pointer, "reason": "current_employer_unregistered"})
             continue
         try:
             citations = _citation_list(
                 assignment.get("citations"), now, max_age=_QUALIFICATION_MAX_AGE, check_source_date=False
             )
         except ShortlistInputError as exc:
-            queue.append({"profile_url": profile_url, "reason": exc.code})
+            queue.append({**pointer, "reason": exc.code})
             continue
         existing = assignments.get(profile_url)
         if existing and existing.company_id != company_id:
-            queue.append({"profile_url": profile_url, "reason": "conflicting_current_employer_assignments"})
+            queue.append({**pointer, "reason": "conflicting_current_employer_assignments"})
             assignments.pop(profile_url, None)
             continue
         if existing is None:
             assignments[profile_url] = CurrentEmployer(profile_url, company_id, citations)
         else:
             assignments[profile_url] = CurrentEmployer(profile_url, company_id, (*existing.citations, *citations))
-    conflicted = {item["profile_url"] for item in queue if item["reason"] == "conflicting_current_employer_assignments"}
-    for profile_url in conflicted:
+    unresolved = {item["profile_url"] for item in queue if item["profile_url"] is not None}
+    for profile_url in unresolved:
         assignments.pop(profile_url, None)
     return assignments, queue
 

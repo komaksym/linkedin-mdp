@@ -14,6 +14,8 @@ Qualification facts bind to exact canonical LinkedIn profile URLs. Current name,
 
 The `current_employers` object maps raw profile URL keys to a registered company ID and citations. URLs normalize with the same Unicode-preserving identity normalizer used for inbox participants. Multiple keys that normalize to one profile may repeat the same company assignment. Conflicting assignments, unregistered companies, invalid citations, or unsupported identities enter the private queue and withhold all capacity claims. The owner's explicit assumption is that each person's latest known employer is present. Citation retrieval time must be recent; source publication or indexing date does not determine historical employer eligibility.
 
+Each unresolved employer key retains a stable opaque evidence ID and input key index pointer. An invalid assignment for any canonical alias removes that person from resolved employer and capacity audit entries.
+
 A candidate's qualification company must match the current-employer mapping. A conflict withholds that candidate. The report retains the current-employer citations and labels the present-employer assumption in its audit.
 
 The example uses synthetic identities and URLs.

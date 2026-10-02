@@ -805,3 +805,47 @@ def test_read_only_report_has_no_recommendation_event_plan() -> None:
     result = run(source_export(), qualification())
     assert "event_plan" not in result
     assert "external_key" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("invalid_kind", ["assignment", "company", "citation"])
+@pytest.mark.parametrize("invalid_first", [False, True])
+def test_invalid_canonical_employer_alias_removes_all_assignment_and_capacity_audit(
+    invalid_kind: str, invalid_first: bool
+) -> None:
+    """Any invalid current-employer alias keeps the exact person unresolved everywhere."""
+    valid = {"company_id": "co-a", "citations": [citation("employer-b")]}
+    invalid = {
+        "assignment": None,
+        "company": {"company_id": "unregistered", "citations": [citation("unknown")]},
+        "citation": {"company_id": "co-a", "citations": []},
+    }[invalid_kind]
+    entries = [(PROFILE_B, valid), ("https://linkedin.com/in/person-b/", invalid)]
+    if invalid_first:
+        entries.reverse()
+    employers = {PROFILE_A: {"company_id": "co-a", "citations": [citation("employer-a")]}, **dict(entries)}
+    result = run(source_export(invitations=[invitation(PROFILE_B)]), qualification(current_employers=employers))
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert result["invitations"] == []
+    assert all(item["profile_url"] != PROFILE_B for item in result["current_employer_assignments"])
+    assert all(item["profile_url"] != PROFILE_B for item in result["company_usage"]["co-a"]["evidence"])
+    assert all(item["recorded"] is None for item in result["company_usage"].values())
+    assert any(item["profile_url"] == PROFILE_B for item in result["research_queue"])
+
+
+def test_invalid_employer_identity_keys_keep_distinct_private_queue_pointers() -> None:
+    """Unknown mapping keys stay separate and traceable without exposing their raw URLs."""
+    employers = {
+        PROFILE_A: {"company_id": "co-a", "citations": [citation("employer-a")]},
+        "https://linkedin.com.evil.test/in/unknown-a": None,
+        "https://linkedin.com.evil.test/in/unknown-b": None,
+    }
+    result = run(source_export(), qualification(current_employers=employers))
+    queued = [item for item in result["research_queue"] if item["reason"] == "current_employer_identity_invalid"]
+    assert len(queued) == 2
+    assert len({item["evidence_id"] for item in queued}) == 2
+    assert len({item["opaque_recipient_id"] for item in queued}) == 2
+    assert {item["source_ref"] for item in queued} == {
+        "qualification.current_employers.keys[1]", "qualification.current_employers.keys[2]",
+    }
+    assert "linkedin.com.evil.test" not in json.dumps(queued)
+    assert result["status"] == "withheld_current_employer_assignments"

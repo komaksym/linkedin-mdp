@@ -41,11 +41,10 @@ def _write_new_private(path: Path, content: str) -> None:
     """Create one new mode-0600 artifact without replacing an existing file."""
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        with os.fdopen(descriptor, "w", encoding="utf-8", closefd=False) as output:
             output.write(content)
-    except BaseException:
+    finally:
         os.close(descriptor)
-        raise
 
 
 def _arguments(argv: list[str] | None) -> argparse.Namespace:

@@ -451,6 +451,7 @@ def test_bad_or_incomplete_transport_fails_closed(mutation: str) -> None:
     elif mutation == "bad-page-count":
         source["snapshots"]["CONNECTIONS"]["page_count"] = 0
     elif mutation == "missing-raw-elements":
+        source["snapshots"]["CONNECTIONS"]["rows"] = [{"URL": PROFILE_B}]
         source["snapshots"]["CONNECTIONS"]["raw_elements"] = []
     elif mutation == "raw-row-mismatch":
         source["snapshots"]["CONNECTIONS"]["rows"].append({"URL": PROFILE_B})
@@ -671,3 +672,86 @@ def test_cli_refuses_to_overwrite_existing_outputs() -> None:
         assert process.returncode == 1
         assert process.stdout.strip() == "invitation shortlist: failed"
         assert (output_path / "invitation-shortlist.json").read_text(encoding="utf-8") == "sentinel"
+
+
+@pytest.mark.parametrize("domain", ["CONNECTIONS", "INVITATIONS", "INBOX"])
+def test_complete_snapshot_without_elements_is_valid(domain: str) -> None:
+    """A fetched empty provider page is complete without any snapshot elements."""
+    source = source_export()
+    source["snapshots"][domain]["raw_elements"] = []
+    assert run(source, qualification())["status"] == "ready"
+
+
+@pytest.mark.parametrize("key", ["invite sent date", "invite_sent_date", "INVITE SENT DATE"])
+def test_normalized_crm_send_date_retains_binding(key: str) -> None:
+    """Every recognized spelling of a CRM date retains the same event-date binding."""
+    prospects = [prospect_row(PROFILE_A, "tracked-a"), {"id": "tracked-b", "linkedin_url": PROFILE_B, "attributes": {key: "2026-09-27"}}]
+    result = run(source_export(prospects=prospects), qualification(history_bindings=[crm_history_binding(PROFILE_B, "tracked-b", "2026-09-27")]))
+    assert result["status"] == "ready"
+    assert result["company_usage"]["co-a"]["recorded"] == 1
+
+
+def test_conflicting_normalized_crm_dates_remain_unknown() -> None:
+    """Conflicting alias values never choose an invitation day by dictionary order."""
+    row = prospect_row(PROFILE_B, "tracked-b")
+    row["attributes"] = {"Invite Sent Date": "2026-09-27", "invite_sent_date": "2026-09-28"}
+    result = run(source_export(prospects=[row]), qualification())
+    assert result["status"] == "withheld_history_company_bindings"
+    assert result["research_queue"][0]["event_date"] is None
+
+
+@pytest.mark.parametrize("value", ["true", " TRUE ", "yes", "1", 1, "unrecognized"])
+def test_text_and_unknown_opt_out_flags_exclude_prospects(value: Any) -> None:
+    """Imported affirmative or uninterpretable opt-out flags cannot permit recommendations."""
+    row = prospect_row(PROFILE_A, "tracked-a")
+    row["attributes"] = {"Opt Out": value}
+    result = run(source_export(prospects=[row]), qualification())
+    assert result["invitations"] == []
+    assert result["excluded_counts"]["suppressed"] == 1
+
+
+@pytest.mark.parametrize("value", [False, "false", " NO ", "0", 0, "", None])
+def test_negative_or_empty_opt_out_flags_do_not_suppress(value: Any) -> None:
+    """Explicit negative and absent CRM flags do not invent an opt-out."""
+    row = prospect_row(PROFILE_A, "tracked-a")
+    row["attributes"] = {"Do Not Contact": value}
+    assert len(run(source_export(prospects=[row]), qualification())["invitations"]) == 1
+
+
+@pytest.mark.parametrize("timestamp", ["2026-09-27T00:00:00+05:00", "2026-09-27T23:00:00-05:00"])
+def test_date_precision_events_preserve_source_calendar_day(timestamp: str) -> None:
+    """Date-only evidence retains its calendar day across either UTC midnight boundary."""
+    event = {"id": "date-event", "prospect_id": "tracked-b", "source": "CRM", "event_type": "LINKEDIN_INVITE_SENT", "occurred_at": timestamp, "payload": {"timestamp_semantics": "actual", "timestamp_precision": "date"}}
+    prospects = [prospect_row(PROFILE_A, "tracked-a"), prospect_row(PROFILE_B, "tracked-b")]
+    result = run(source_export(prospects=prospects, events=[event]), qualification())
+    queued = result["research_queue"][0]
+    assert queued["event_date"] == "2026-09-27"
+    assert queued["time_precision"] == "calendar_day"
+    assert queued["timezone"] == "unknown"
+
+
+def test_private_writer_preserves_real_filesystem_failure() -> None:
+    """Opening, wrapper construction, writing, flushing and cleanup can fail; cleanup must not mask the original error."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output = Path(temp_dir) / "limited.txt"
+        script = '''import errno
+import resource
+import signal
+import sys
+from pathlib import Path
+from scripts.build_invitation_shortlist import _write_new_private
+signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+resource.setrlimit(resource.RLIMIT_FSIZE, (16, 16))
+try:
+    _write_new_private(Path(sys.argv[1]), "x" * 64)
+except OSError as exc:
+    assert exc.errno == errno.EFBIG, exc.errno
+else:
+    raise AssertionError("filesystem failure not observed")
+'''
+        environment = os.environ.copy()
+        environment["PYTHONPATH"] = str(ROOT / "src") + os.pathsep + str(ROOT)
+        result = subprocess.run([sys.executable, "-c", script, str(output)], env=environment, capture_output=True, text=True, check=False)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert output.exists()
+        assert stat.S_IMODE(output.stat().st_mode) == 0o600

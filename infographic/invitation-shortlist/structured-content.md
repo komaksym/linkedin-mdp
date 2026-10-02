@@ -1,7 +1,8 @@
-# Invitations backed by history
-Central module has four separated layers, labeled Complete source evidence; Employer at invitation time; Current US PVF fit; Dated priority signals.
-Main output is Up to 25 invitation candidates.
-Capacity callout is Max 3 recipients per company, across all history.
-Missing-history branch is Research queue, recommendations withheld.
-Private-output callout is JSON + Markdown + recommendation event plans.
-Footer is Manual sends. Unknown signals stay unknown.
+# Invitation shortlist
+Learning objective: distinguish observed invitation history from read-only suggestions.
+Input layers: All outgoing history. Exact people. Latest known employer.
+Policy layer: Assumed present. Count each person once. Three per company.
+Guard: Unknown identity or employer withholds recommendations.
+Exclusions: Already invited. Connected. Opted out.
+Priority: Activity. Mutuals. Connections. Profile photo.
+Output: Up to25 invitations. Private report only. No Supabase writes. Owner sends manually.

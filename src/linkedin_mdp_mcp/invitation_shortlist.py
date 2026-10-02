@@ -66,6 +66,15 @@ class QualifiedCandidate:
 
 
 @dataclass(frozen=True)
+class CurrentEmployer:
+    """Represent one exact profile's owner-approved latest-known employer."""
+
+    profile_url: str
+    company_id: str
+    citations: tuple[Citation, ...]
+
+
+@dataclass(frozen=True)
 class HistoryEvidence:
     """Identify one invitation event or connection exclusion with its source pointer."""
 
@@ -150,7 +159,9 @@ def _date(value: Any, code: str) -> date:
     return parsed
 
 
-def _citation_list(value: Any, now: datetime, *, max_age: timedelta) -> tuple[Citation, ...]:
+def _citation_list(
+    value: Any, now: datetime, *, max_age: timedelta, check_source_date: bool = True
+) -> tuple[Citation, ...]:
     """Validate dated HTTP citations and reject stale or future-dated evidence."""
     items = _array(value, "qualification_missing_citation")
     citations: list[Citation] = []
@@ -175,7 +186,7 @@ def _citation_list(value: Any, now: datetime, *, max_age: timedelta) -> tuple[Ci
             except ValueError as exc:
                 raise ShortlistInputError("qualification_invalid_citation") from exc
         retrieved_at = _timestamp(row.get("retrieved_at"), "qualification_invalid_citation")
-        if source_date is not None and (source_date > now.date() or (now.date() - source_date).days > max_age.days):
+        if check_source_date and source_date is not None and (source_date > now.date() or (now.date() - source_date).days > max_age.days):
             raise ShortlistInputError("qualification_stale")
         if retrieved_at > now + timedelta(minutes=5):
             raise ShortlistInputError("qualification_invalid_citation")
@@ -215,6 +226,47 @@ def _company_registry(value: Any) -> tuple[dict[str, Company], dict[str, str]]:
                 normalized_aliases.append(key)
         companies[company_id] = Company(company_id, name.strip(), tuple(normalized_aliases))
     return companies, aliases
+
+
+def _current_employers(
+    value: Any, registry: Mapping[str, Company], now: datetime
+) -> tuple[dict[str, CurrentEmployer], list[dict[str, Any]]]:
+    """Validate cited latest-employer assignments and queue unresolved exact identities."""
+    assignments: dict[str, CurrentEmployer] = {}
+    queue: list[dict[str, Any]] = []
+    for raw_url, raw_assignment in _object(value, "current_employers_invalid").items():
+        profile_url = normalize_profile_url(raw_url)
+        if profile_url is None:
+            queue.append({"profile_url": None, "reason": "current_employer_identity_invalid"})
+            continue
+        if not isinstance(raw_assignment, Mapping):
+            queue.append({"profile_url": profile_url, "reason": "current_employer_assignment_invalid"})
+            continue
+        assignment = raw_assignment
+        company_id = assignment.get("company_id")
+        if not isinstance(company_id, str) or company_id not in registry:
+            queue.append({"profile_url": profile_url, "reason": "current_employer_unregistered"})
+            continue
+        try:
+            citations = _citation_list(
+                assignment.get("citations"), now, max_age=_QUALIFICATION_MAX_AGE, check_source_date=False
+            )
+        except ShortlistInputError as exc:
+            queue.append({"profile_url": profile_url, "reason": exc.code})
+            continue
+        existing = assignments.get(profile_url)
+        if existing and existing.company_id != company_id:
+            queue.append({"profile_url": profile_url, "reason": "conflicting_current_employer_assignments"})
+            assignments.pop(profile_url, None)
+            continue
+        if existing is None:
+            assignments[profile_url] = CurrentEmployer(profile_url, company_id, citations)
+        else:
+            assignments[profile_url] = CurrentEmployer(profile_url, company_id, (*existing.citations, *citations))
+    conflicted = {item["profile_url"] for item in queue if item["reason"] == "conflicting_current_employer_assignments"}
+    for profile_url in conflicted:
+        assignments.pop(profile_url, None)
+    return assignments, queue
 
 
 def _parse_factor(name: str, value: Any, now: datetime) -> Factor | None:
@@ -677,8 +729,22 @@ def _make_markdown(result: Mapping[str, Any]) -> str:
                 "Evidence: " + ", ".join(citation["url"] for citations in item["evidence"].values() for citation in citations),
                 "",
             ])
+    if result["company_usage"]:
+        lines.extend(["## Lifetime company capacity", ""])
+        employers = result["current_employer_assignments"]
+        for company_id, usage in result["company_usage"].items():
+            count = usage["recorded"] if usage["recorded"] is not None else "withheld"
+            remaining = usage["remaining_slots"] if usage["remaining_slots"] is not None else "unknown"
+            lines.append(f"{company_id}: {count} recorded, {remaining} slots remaining.")
+            for employer in employers:
+                if employer["company_id"] == company_id:
+                    citations = ", ".join(item["url"] for item in employer["citations"])
+                    lines.append(f"- Current employer for {employer['profile_url']}: {citations}")
+            for evidence in usage["evidence"]:
+                lines.append(f"- {evidence['profile_url']}: {evidence['evidence_id']} at {evidence['source_ref']} (date audit: {evidence['event_date'] or 'unknown'}).")
+            lines.append("")
     if result["research_queue"]:
-        lines.extend(["## Historical company evidence to resolve", "", "These opaque records must be researched before an all-history cap can be claimed.", ""])
+        lines.extend(["## Current employer assignments to resolve", "", "Resolve every queued identity or employer before using all-history capacity counts.", ""])
         for row in result["research_queue"]:
             pointer = ", ".join(
                 value for value in (
@@ -690,7 +756,7 @@ def _make_markdown(result: Mapping[str, Any]) -> str:
             )
             lines.append(f"- {pointer}: {row['reason']}.")
         lines.append("")
-    lines.extend(["## Audit", "", f"Score version: `{_SCORE_VERSION}`. Recommendations are event plans only. No invitation was sent.", ""])
+    lines.extend(["## Audit", "", f"Score version: `{_SCORE_VERSION}`. Current employers use the owner-approved latest-known-present assumption. No invitation was sent.", ""])
     return "\n".join(lines)
 
 
@@ -760,13 +826,9 @@ def build_invitation_shortlist(
     prospects = _validate_database_snapshot(source.get("prospects"), "prospects")
     events = _validate_database_snapshot(source.get("events"), "events")
     registry, aliases = _company_registry(qualification.get("company_registry"))
+    employers, employer_queue = _current_employers(qualification.get("current_employers"), registry, now)
     prospect_ids_by_url, conflicting_profiles = _source_profile_index(prospects)
     history, connected_profiles, prior_profiles, unresolved_connections = _source_history(provider_rows["INVITATIONS"], provider_rows["CONNECTIONS"], prospects, events)
-    history_by_id: dict[str, HistoryEvidence] = {}
-    for item in history:
-        if item.evidence_id in history_by_id:
-            raise ShortlistInputError("source_history_identity_duplicate")
-        history_by_id[item.evidence_id] = item
     candidates_data = _array(qualification.get("candidates"), "qualification_candidates_missing")
     parsed_candidates: list[QualifiedCandidate] = []
     withheld_counts: Counter[str] = Counter()
@@ -794,6 +856,10 @@ def build_invitation_shortlist(
         if url in duplicate_candidates or url in conflicting_profiles:
             withheld_counts["identity_conflict"] += 1
             continue
+        employer = employers.get(url)
+        if employer is None or employer.company_id != candidate_row.company_id:
+            withheld_counts["current_employer_conflict"] += 1
+            continue
         prospect_ids = {
             str(row["id"])
             for row in prospects
@@ -812,12 +878,11 @@ def build_invitation_shortlist(
             eligible.append(candidate_row)
 
     company_counts: Counter[str] = Counter()
-    cap_evidence_by_company: dict[str, list[str]] = defaultdict(list)
+    cap_evidence_by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
     history_queue: list[dict[str, Any]] = []
-    research_queue: list[dict[str, Any]] = []
     for evidence in unresolved_connections:
         history_queue.append({
-            "opaque_recipient_id": evidence.evidence_id,
+            "opaque_recipient_id": evidence.evidence_id if evidence.profile_url is None else _profile_queue_id(evidence.profile_url),
             "evidence_id": evidence.evidence_id,
             "profile_url": None,
             "source_ref": evidence.source_ref,
@@ -827,102 +892,60 @@ def build_invitation_shortlist(
             "timezone": evidence.timezone,
             "reason": "unsupported_connected_profile_url" if evidence.source_ref.startswith("snapshots.CONNECTIONS") else "unsupported_historical_profile_url",
         })
-    raw_bindings = _array(qualification.get("history_company_bindings"), "history_bindings_missing")
-    bindings_by_id: dict[str, Mapping[str, Any]] = {}
-    binding_errors: list[tuple[HistoryEvidence, str]] = []
-    for binding_value in raw_bindings:
-        if not isinstance(binding_value, Mapping):
-            raise ShortlistInputError("company_at_invitation_binding_invalid")
-            continue
-        profile_url = normalize_profile_url(binding_value.get("profile_url"))
-        opaque_id = binding_value.get("opaque_recipient_id")
-        evidence_id = binding_value.get("evidence_id")
-        company_id = binding_value.get("company_id")
-        if not isinstance(evidence_id, str) or evidence_id not in history_by_id:
-            raise ShortlistInputError("history_bindings_unmatched")
-        history_item = history_by_id[evidence_id]
-        if (history_item.profile_url is None and (profile_url is not None or opaque_id != evidence_id)) or (
-            history_item.profile_url is not None and (profile_url != history_item.profile_url or opaque_id is not None)
-        ):
-            binding_errors.append((history_item, "unsupported_historical_profile_url"))
-            continue
-        if not isinstance(company_id, str) or company_id not in registry:
-            binding_errors.append((history_item, "company_at_invitation_unverified"))
-            continue
-        try:
-            binding_citations = _citation_list(binding_value.get("citations"), now, max_age=timedelta(days=36500))
-            attested_event_date = _date(binding_value.get("event_date"), "history_binding_event_date_invalid")
-            claim_date = _date(binding_value.get("historical_claim_date"), "history_binding_claim_date_invalid") if binding_value.get("historical_claim_date") is not None else None
-            interval = _object(binding_value.get("employment_interval"), "history_binding_interval_invalid") if binding_value.get("employment_interval") is not None else None
-            interval_start = _date(interval.get("start_date"), "history_binding_interval_invalid") if interval else None
-            interval_end = _date(interval.get("end_date"), "history_binding_interval_invalid") if interval and interval.get("end_date") is not None else None
-        except ShortlistInputError as exc:
-            binding_errors.append((history_item, exc.code))
-            continue
-        event_date = history_item.event_date
-        interval_covers = bool(interval_start and event_date and interval_start <= event_date and (interval_end is None or event_date <= interval_end))
-        if (binding_value.get("company_at_event") is not True or not event_date or attested_event_date != event_date or
-                not (interval_covers or claim_date == event_date) or not binding_citations):
-            binding_errors.append((history_item, "company_at_invitation_unverified" if event_date else "invitation_timestamp_unknown"))
-            continue
-        if evidence_id in bindings_by_id:
-            binding_errors.append((history_item, "duplicate_history_binding"))
-            continue
-        bindings_by_id[evidence_id] = binding_value
-    missing_ids = set(history_by_id) - set(bindings_by_id)
-    for evidence_id in sorted(missing_ids):
-        evidence = history_by_id[evidence_id]
-        reason = "invitation_timestamp_unknown" if evidence.event_date is None else ("company_at_invitation_unbound" if evidence.profile_url else "unsupported_historical_profile_url")
-        binding_errors.append((evidence, reason))
-    extra_ids = set(bindings_by_id) - set(history_by_id)
-    if extra_ids:
-        raise ShortlistInputError("history_bindings_unmatched")
-    for evidence in history_by_id.values():
+    history_by_profile: dict[str, list[HistoryEvidence]] = defaultdict(list)
+    for evidence in history:
         if evidence.profile_url is None:
-            binding_errors.append((evidence, "unsupported_historical_profile_url"))
-    if binding_errors:
-        for evidence, reason in binding_errors:
             history_queue.append({
-                "opaque_recipient_id": evidence.evidence_id if evidence.profile_url is None else _profile_queue_id(evidence.profile_url),
+                "opaque_recipient_id": evidence.evidence_id,
                 "evidence_id": evidence.evidence_id,
-                "profile_url": evidence.profile_url,
+                "profile_url": None,
                 "source_ref": evidence.source_ref,
                 "event_date": evidence.event_date.isoformat() if evidence.event_date else None,
                 "source_time": evidence.source_time,
                 "time_precision": evidence.time_precision,
                 "timezone": evidence.timezone,
-                "company_at_event_attestation_required": True,
-                "reason": reason,
+                "reason": "unsupported_historical_profile_url",
             })
-    else:
-        deduplicated: Counter[str] = Counter()
-        profiles_by_company: dict[str, set[str]] = defaultdict(set)
-        pairs = {
-            (str(binding["company_id"]), history_by_id[evidence_id].profile_url)
-            for evidence_id, binding in bindings_by_id.items()
-        }
-        for company_id, _profile_url in pairs:
-            if _profile_url:
-                deduplicated[company_id] += 1
-                profiles_by_company[company_id].add(_profile_url)
-        for evidence_id, binding in bindings_by_id.items():
-            company_id = str(binding["company_id"])
-            evidence = history_by_id[evidence_id]
-            if evidence.profile_url in profiles_by_company[company_id]:
-                cap_evidence_by_company[company_id].append(evidence_id)
-        company_counts = deduplicated
-    research_queue.extend(history_queue)
+        else:
+            history_by_profile[evidence.profile_url].append(evidence)
+    for profile_url, evidence_rows in history_by_profile.items():
+        employer = employers.get(profile_url)
+        if employer is None:
+            history_queue.extend({
+                "opaque_recipient_id": _profile_queue_id(profile_url),
+                "evidence_id": evidence.evidence_id,
+                "profile_url": profile_url,
+                "source_ref": evidence.source_ref,
+                "event_date": evidence.event_date.isoformat() if evidence.event_date else None,
+                "source_time": evidence.source_time,
+                "time_precision": evidence.time_precision,
+                "timezone": evidence.timezone,
+                "reason": "current_employer_missing",
+            } for evidence in evidence_rows)
+            continue
+        company_counts[employer.company_id] += 1
+        cap_evidence_by_company[employer.company_id].extend({
+            "evidence_id": evidence.evidence_id,
+            "profile_url": profile_url,
+            "source_ref": evidence.source_ref,
+            "event_date": evidence.event_date.isoformat() if evidence.event_date else None,
+            "source_time": evidence.source_time,
+            "time_precision": evidence.time_precision,
+            "timezone": evidence.timezone,
+        } for evidence in evidence_rows)
+    history_queue.extend(employer_queue)
+    research_queue = history_queue
     unique_queue: list[dict[str, Any]] = []
     seen_queue: set[tuple[str, str]] = set()
     for queue_item in research_queue:
-        key = (queue_item["evidence_id"], queue_item["reason"])
+        key = (queue_item.get("evidence_id", queue_item.get("profile_url", "")), queue_item["reason"])
         if key not in seen_queue:
             unique_queue.append(queue_item)
             seen_queue.add(key)
     research_queue = unique_queue
 
     if research_queue:
-        status = "withheld_history_company_bindings"
+        status = "withheld_current_employer_assignments"
         selected: list[QualifiedCandidate] = []
     else:
         status = "ready"
@@ -940,54 +963,22 @@ def build_invitation_shortlist(
         for candidate_row in selected:
             remaining_slots[candidate_row.company_id] -= 1
         slots = remaining_slots
-    research_queue.sort(key=lambda item: (item["evidence_id"], item["reason"]))
-
-    source_digest = _stable_hash(source)
+    research_queue.sort(key=lambda item: (item.get("evidence_id", ""), item["reason"]))
     rows_out = [_candidate_json(item) for item in selected]
-    event_plan = [
-        {
-            "prospect_id": next((str(row["id"]) for row in prospects if normalize_profile_url(row.get("linkedin_url")) == item.profile_url), None),
-            "source": "AGENT_ACTION_REPORT",
-            "event_type": "LINKEDIN_INVITATION_RECOMMENDED",
-            "external_key": f"invitation-recommended:{_stable_hash([item.profile_url, _SCORE_VERSION, collected_at.isoformat()])}",
-            "occurred_at": now.isoformat(),
-            "payload": {
-                "recommendation_only": True,
-                "profile_url": item.profile_url,
-                "score_version": _SCORE_VERSION,
-                "score": _candidate_json(item)["score"],
-                "score_factors": _candidate_json(item)["score_factors"],
-                "unknown_factors": _candidate_json(item)["unknown_factors"],
-                "qualification_evidence": _candidate_json(item)["evidence"],
-                "qualification_attestation": "input facts are explicitly attested; citation URLs are retained but page contents are not fetched by this builder",
-                "cap_evidence": {
-                    "scope": cap_scope,
-                    "company_id": item.company_id,
-                    "recorded_count": company_counts[item.company_id],
-                    "source_digest": source_digest,
-                    "history_evidence_ids": sorted(cap_evidence_by_company[item.company_id]),
-                },
-            },
+    company_usage: dict[str, dict[str, Any]] = {}
+    for company_id in sorted(registry):
+        usage: dict[str, Any] = {
+            "recorded": company_counts[company_id] if status == "ready" else None,
+            "remaining_slots": max(0, 3 - company_counts[company_id]) if status == "ready" else None,
+            "evidence": cap_evidence_by_company[company_id],
         }
-        for item in selected
-    ]
-    company_usage: dict[str, dict[str, int | None]] = (
-        {company_id: {"recorded": None, "remaining_slots": None} for company_id in sorted(registry)}
-        if status != "ready"
-        else {
-            company_id: {
-                "recorded": company_counts[company_id],
-                "remaining_slots": max(0, 3 - company_counts[company_id]),
-            }
-            for company_id in sorted(registry)
-        }
-    )
+        company_usage[company_id] = usage
     output: dict[str, Any] = {
         "schema_version": 1,
         "status": status,
         "cap_scope": cap_scope,
         "score_version": _SCORE_VERSION,
-        "evidence_validation": "input facts and company bindings are explicit attestations; citation structure and dates are validated, but external page contents are not fetched",
+        "evidence_validation": "current employer is an owner-approved latest-known-present assumption; citations are retained but external page contents are not fetched",
         "source_freshness": {
             "acquisition": "fresh",
             "collected_at": collected_at.isoformat(),
@@ -1004,10 +995,17 @@ def build_invitation_shortlist(
         },
         "excluded_counts": dict(sorted(excluded_counts.items())),
         "withheld_counts": dict(sorted(withheld_counts.items())),
+        "current_employer_assignments": [
+            {
+                "profile_url": item.profile_url,
+                "company_id": item.company_id,
+                "citations": [_citation_json(citation) for citation in item.citations],
+            }
+            for item in sorted(employers.values(), key=lambda item: item.profile_url)
+        ],
         "company_usage": company_usage,
         "research_queue": research_queue,
         "invitations": rows_out,
-        "event_plan": event_plan,
     }
     output["output_digest"] = _stable_hash(output)
     return output

@@ -1,3 +1,3 @@
-# Analysis
-Small technical system infographic for one invitation-shortlist feature, for the operator and reviewer. Show how historical eligibility precedes ranking, and how missing history produces research tasks. No real people, company data, source counts, or confidential IDs.
-Technical defaults confirm structural-breakdown, technical-schematic, 16:9 landscape, English, native image backend. Use a neutral opaque canvas and readable labels.
+Technical system infographic for the current invitation-planner PR. Teach how all-history capacity, exact identities and latest-known employer assumption produce private suggestions. Structural-breakdown, technical-schematic, landscape16:9, English, native imagegen, resolved by technical/system default profile. No personal data or claims of deployed sync. Saved preferences use backendauto with unspecified layout/style/language.
+
+Native raster generated from saved prompt and visually inspected. Labels are readable, opaque neutral canvas has a visible boundary, content matches revised planner policy. No personal data. No vector/code rendering or text overlay. Intended publication as replacement current-feature infographic after owner checkout handoff.

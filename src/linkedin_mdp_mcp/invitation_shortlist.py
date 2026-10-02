@@ -261,6 +261,8 @@ def _current_employers(
                 if not rows:
                     raise ShortlistInputError("current_employer_assignment_invalid")
             else:
+                if "coverage" in assignment or "unknown_reasons" in assignment:
+                    raise ShortlistInputError("current_employer_assignment_invalid")
                 rows = [assignment]
             companies: dict[str, tuple[Citation, ...]] = {}
             for raw in rows:

@@ -1009,6 +1009,22 @@ def test_invalid_present_sets_keep_global_withholding(value: dict[str, Any], rea
     assert all(row["recorded"] is None for row in result["company_usage"].values())
 
 
+def test_legacy_employer_rows_reject_completeness_metadata() -> None:
+    legacy = {
+        "company_id": "co-a",
+        "citations": [citation("employer-a")],
+        "coverage": "partial",
+        "unknown_reasons": ["unnamed_current_role"],
+    }
+    result = run(
+        source_export(invitations=[invitation(PROFILE_B)]),
+        qualification(current_employers={PROFILE_A: legacy, PROFILE_B: employer_set("co-b")}),
+    )
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert result["invitations"] == []
+    assert any(row["reason"] == "current_employer_assignment_invalid" for row in result["research_queue"])
+
+
 def test_conflicting_canonical_present_sets_are_not_unioned() -> None:
     """Distinct normalized-key records claiming different complete sets remain unresolved."""
     claims = {PROFILE_A: employer_set("co-a"), PROFILE_B: employer_set("co-a", "co-b"), "https://linkedin.com/in/person-b/": employer_set("co-a")}

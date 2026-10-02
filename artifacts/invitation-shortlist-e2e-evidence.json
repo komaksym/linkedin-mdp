@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 105,
+  "scenario_count": 106,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -33,7 +33,8 @@
     "explicit concurrent employers could not charge each historical company once",
     "complete employer sets could not admit qualified-company membership",
     "conflicting canonical sets lacked an explicit conflict reason",
-    "secondary employer at capacity admitted an invitation"
+    "secondary employer at capacity admitted an invitation",
+    "legacy employer rows ignored incomplete coverage metadata"
   ],
-  "artifact_digest": "7c44c1a96c9668dae9aaf8d8343ab66c89aa47e984b86bace368371f3a40cd9e"
+  "artifact_digest": "e41183b5d521f0539c23463866c2a3befda144b7a66496c42f8d92d6ed06d57c"
 }

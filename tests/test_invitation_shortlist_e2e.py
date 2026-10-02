@@ -64,6 +64,7 @@ def test_invitation_shortlist_e2e() -> None:
             "complete employer sets could not admit qualified-company membership",
             "conflicting canonical sets lacked an explicit conflict reason",
             "secondary employer at capacity admitted an invitation",
+            "legacy employer rows ignored incomplete coverage metadata",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

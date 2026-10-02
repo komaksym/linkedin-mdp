@@ -17,3 +17,5 @@ The E2E runner uses synthetic LinkedIn and Supabase HTTP transports. Run `uv run
 The complete report requirements and remaining milestones are recorded in [Actionable LinkedIn report](action-report-contract.md).
 
 The live provider also supplies `YYYY-MM-DD HH:MM:SS UTC` timestamps. This exact format has explicit UTC semantics and is stored as actual provider time. Other timezone abbreviations and conflicting offset-plus-abbreviation forms remain unsupported; they are never assigned an assumed timezone.
+
+The approved [live validation run](https://github.com/komaksym/linkedin-mdp/actions/runs/36985062303) verified nonempty persistence, complete payload and timestamp readback, and duplicate-free replay at revision `5cc23814450c14b4a8d3312c682b5f65fa87e22c`. The verdict contains no member data. This establishes the inbox evidence path; it does not establish DM classification or action readiness.

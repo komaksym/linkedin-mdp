@@ -104,6 +104,29 @@ jobs:
                   print("saved Clay evidence present:", bool(research))
                   for label in sorted(KNOWN_FIELDS):
                       print("supported Clay field " + label + ":", label in research_fields)
+                  schema_response = await store._request("GET", "/rest/v1/")
+                  schema = schema_response.json()
+                  if not isinstance(schema, dict) or not isinstance(schema.get("definitions"), dict):
+                      raise RuntimeError("schema metadata unavailable")
+                  definitions = schema["definitions"]
+                  for table in ("prospects", "events", "leads", "companies", "research", "clay_enrichments"):
+                      present = table in definitions
+                      print("source table " + table + ":", present)
+                      if not present:
+                          continue
+                      properties = definitions[table].get("properties", {})
+                      if not isinstance(properties, dict):
+                          raise RuntimeError("invalid table schema")
+                      for label in ("lead_id", "name", "first_name", "last_name", "company", "company_name", "company_domain", "country", "location", "title", "industry", "attributes", "data", "research", "metadata", "linkedin_url"):
+                          print("source column " + table + "." + label + ":", label in properties)
+                      if table in ("leads", "companies", "research", "clay_enrichments"):
+                          sample_response = await store._request("GET", "/rest/v1/" + table, params={"select": "*", "limit": "250"})
+                          sample = store._json_list(sample_response)
+                          sample_fields = set()
+                          fields(sample, sample_fields)
+                          print("source sample " + table + " present:", bool(sample))
+                          for label in sorted(KNOWN_FIELDS):
+                              print("observed sample field " + table + "." + label + ":", label in sample_fields)
               finally:
                   try:
                       await linkedin.aclose()

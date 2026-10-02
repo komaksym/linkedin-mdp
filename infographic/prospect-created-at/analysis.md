@@ -1,0 +1,1 @@
+Technical system scope: existing database field through collector to encrypted export. Audience: PR reviewer. Small correction; English, structural-breakdown, technical-schematic, 16:9, native imagegen selected from technical defaults and saved auto backend. No private data.

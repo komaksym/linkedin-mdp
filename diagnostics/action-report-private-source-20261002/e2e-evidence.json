@@ -1,0 +1,24 @@
+{
+  "synthetic_only": true,
+  "scenarios": {
+    "complete_sources_roundtrip": true,
+    "prospect_created_at_exact_across_pages": true,
+    "missing_created_at_not_fabricated": true,
+    "private_plaintext_absent_encrypted_artifact": true,
+    "read_only_http": true,
+    "successful_empty_sources_encrypt": true,
+    "unavailable_rejected_without_artifact": true,
+    "malformed_rejected_without_artifact": true,
+    "domain_rejected_without_artifact": true,
+    "truncated_rejected_without_artifact": true,
+    "escaped_domain_rejected_without_artifact": true,
+    "db_cap_rejected_without_artifact": true,
+    "db_malformed_rejected_without_artifact": true,
+    "db_missing_count_rejected_without_artifact": true,
+    "db_changed_count_rejected_without_artifact": true,
+    "db_duplicate_rejected_without_artifact": true,
+    "cli_fixed_success_log_without_plaintext": true,
+    "cli_fixed_failure_log_without_plaintext": true,
+    "no_plaintext_source_file": true
+  }
+}

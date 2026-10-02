@@ -16,7 +16,7 @@ from linkedin_mdp_mcp.supabase_client import SupabaseClient
 BASE_REVISION = "817fe2da7d433e6b00ac4bf98851bd4b0eef31f4"
 DOMAINS = ("CONNECTIONS", "INVITATIONS", "INBOX")
 TABLE_COLUMNS = {
-    "prospects": "id,lead_id,linkedin_url,attributes",
+    "prospects": "id,lead_id,linkedin_url,attributes,created_at",
     "events": "id,prospect_id,source,event_type,external_key,occurred_at,payload,created_at",
 }
 

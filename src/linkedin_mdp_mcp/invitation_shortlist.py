@@ -236,7 +236,8 @@ def _current_employers(
     queue: list[dict[str, Any]] = []
     for index, (raw_url, raw_assignment) in enumerate(_object(value, "current_employers_invalid").items()):
         profile_url = normalize_profile_url(raw_url)
-        evidence_id = f"current-employer-key-sha256:{_stable_hash(raw_url)}"
+        key_json = json.dumps(raw_url, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        evidence_id = f"current-employer-key-sha256:{hashlib.sha256(key_json.encode('ascii')).hexdigest()}"
         pointer = {
             "evidence_id": evidence_id,
             "opaque_recipient_id": evidence_id,

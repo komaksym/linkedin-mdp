@@ -13,6 +13,12 @@ from linkedin_mdp_mcp.inbox_sync import reconcile_inbox
 from linkedin_mdp_mcp.supabase_client import SupabaseClient
 
 
+def _require(condition: bool) -> None:
+    """Reject failed evidence checks even when Python optimization is enabled."""
+    if not condition:
+        raise RuntimeError("live inbox verification condition failed")
+
+
 class FrozenInbox:
     """Replay one real provider snapshot so new arrivals cannot change the oracle."""
 
@@ -22,7 +28,7 @@ class FrozenInbox:
 
     async def snapshot(self, domain: str, **options: Any) -> dict[str, Any]:
         """Supply only the exact INBOX snapshot fetched for this validation."""
-        assert domain == "INBOX"
+        _require(domain == "INBOX")
         return deepcopy(self.value)
 
 
@@ -43,13 +49,13 @@ class VerifiedStore(SupabaseClient):
         for event in self.expected:
             previous = existing.get(event["external_key"])
             if previous is not None:
-                assert previous["payload"] == event["payload"]
+                _require(previous["payload"] == event["payload"])
                 previous_time = datetime.fromisoformat(previous["occurred_at"])
                 planned_time = datetime.fromisoformat(event["occurred_at"])
                 if event["payload"]["timestamp_semantics"] == "actual":
-                    assert previous_time == planned_time
+                    _require(previous_time == planned_time)
                 else:
-                    assert (
+                    _require(
                         previous_time.utcoffset() is not None
                         and previous_time <= planned_time
                     )
@@ -77,15 +83,15 @@ class VerifiedStore(SupabaseClient):
             )
             stored = self._json_list(response)
             by_key = {event["external_key"]: event for event in stored}
-            assert len(by_key) == len(stored)
-            assert set(by_key) <= {event["external_key"] for event in batch}
+            _require(len(by_key) == len(stored))
+            _require(set(by_key) <= {event["external_key"] for event in batch})
             result.update(by_key)
         return result
 
     async def verify_readback(self) -> None:
         """Compare every persisted payload and timestamp with its private write oracle."""
         stored = await self.read_events(self.expected)
-        assert set(stored) == {event["external_key"] for event in self.expected}
+        _require(set(stored) == {event["external_key"] for event in self.expected})
         for expected in self.expected:
             actual = stored[expected["external_key"]]
             for field in (
@@ -95,14 +101,15 @@ class VerifiedStore(SupabaseClient):
                 "external_key",
                 "payload",
             ):
-                assert actual[field] == expected[field]
-            assert datetime.fromisoformat(
-                actual["occurred_at"]
-            ) == datetime.fromisoformat(expected["occurred_at"])
+                _require(actual[field] == expected[field])
+            _require(
+                datetime.fromisoformat(actual["occurred_at"])
+                == datetime.fromisoformat(expected["occurred_at"])
+            )
 
 
 async def verify() -> bool:
-    """Derive the account from complete invitation evidence and verify inbox replay."""
+    """Verify account, readback and replay; return whether the event plan is nonempty."""
     linkedin = LinkedInMDPClient.from_env()
     configured_store = SupabaseClient.from_env()
     store = VerifiedStore(configured_store._base_url, configured_store._key)
@@ -111,23 +118,23 @@ async def verify() -> bool:
         invitations = await linkedin.snapshot(
             "INVITATIONS", max_pages=50, strict_elements=True
         )
-        assert invitations["truncated"] is False and invitations["page_count"] > 0
-        assert all(
+        _require(invitations["truncated"] is False and invitations["page_count"] > 0)
+        _require(all(
             isinstance(element, dict)
             and element.get("snapshotDomain") == "INVITATIONS"
             and isinstance(element.get("snapshotData"), list)
             for element in invitations["raw_elements"]
-        )
+        ))
         outgoing = [
             row
             for row in invitations["rows"]
             if isinstance(row, dict) and row.get("Direction") == "OUTGOING"
         ]
-        assert outgoing and all(
+        _require(bool(outgoing) and all(
             isinstance(row.get("inviterProfileUrl"), str) for row in outgoing
-        )
+        ))
         accounts = {row["inviterProfileUrl"].strip().rstrip("/") for row in outgoing}
-        assert len(accounts) == 1
+        _require(len(accounts) == 1)
         account = accounts.pop()
         snapshot = await linkedin.snapshot("INBOX", max_pages=50, strict_elements=True)
         observed = datetime.now(UTC)
@@ -148,8 +155,8 @@ async def verify() -> bool:
             observed_at=observed,
             dry_run=False,
         )
-        assert second.inserted == 0
-        assert {event["external_key"] for event in store.expected} == first_keys
+        _require(second.inserted == 0)
+        _require({event["external_key"] for event in store.expected} == first_keys)
         await store.verify_readback()
         return bool(first_keys)
     finally:

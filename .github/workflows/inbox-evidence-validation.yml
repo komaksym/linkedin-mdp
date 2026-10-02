@@ -40,6 +40,19 @@ jobs:
           from linkedin_mdp_mcp.inbox_sync import normalize_profile_url
           class DiagnosticComplete(Exception):
               pass
+          import re
+          import linkedin_mdp_mcp.inbox_sync as sync
+          original_time = sync._timestamp
+          signatures = set()
+          def timestamp(value, observed):
+              result = original_time(value, observed)
+              if result is None:
+                  signature = re.sub(r"[A-Za-z0-9]", "x", value[:80]) if isinstance(value, str) else type(value).__name__
+                  if signature not in signatures and len(signatures) < 10:
+                      signatures.add(signature)
+                      print("[inbox-check] rejected timestamp shape:", signature)
+              return result
+          sync._timestamp = timestamp
           original = live.reconcile_inbox
           original_keys = live.SupabaseClient.prospect_ids_by_linkedin_key
           async def keys(self):

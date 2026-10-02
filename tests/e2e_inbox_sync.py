@@ -311,6 +311,52 @@ async def main() -> None:
             raise AssertionError("invalid snapshot metadata was accepted")
     verdicts["snapshot_metadata_rejected"] = True
 
+    scope_rejected = True
+    for href in (
+        "/rest/memberChangeLogs?start=2",
+        "/rest/memberSnapshotData?domain=CONNECTIONS&start=2",
+        "/rest/memberSnapshotData?domain=INBOX&domain=CONNECTIONS&start=2",
+        "/rest/memberSnapshotData?q=all&domain=INBOX&start=2",
+    ):
+        scope_state: dict[str, dict[str, Any]] = {}
+        try:
+            await scenario(
+                [message()],
+                apply=True,
+                store_state=scope_state,
+                pages=[
+                    {
+                        "elements": [{"snapshotDomain": "INBOX", "snapshotData": [message()]}],
+                        "paging": {"links": [{"rel": "next", "href": href}]},
+                    },
+                    {"elements": []},
+                ],
+            )
+        except (InboxSyncError, LinkedInAPIError):
+            scope_rejected = scope_rejected and not scope_state
+        else:
+            scope_rejected = False
+    verdicts["snapshot_pagination_scope_cannot_change"] = scope_rejected
+
+    scoped, scoped_calls, scoped_writes = await scenario(
+        [message()],
+        apply=True,
+        pages=[
+            {
+                "elements": [{"snapshotDomain": "INBOX", "snapshotData": [message()]}],
+                "paging": {"links": [{"rel": "next", "href": "/rest/memberSnapshotData?start=2"}]},
+            },
+            {"elements": []},
+        ],
+    )
+    verdicts["partial_next_link_retains_snapshot_scope"] = (
+        scoped.planned_events == 1
+        and len(scoped_writes) == 1
+        and scoped_calls[1].url.params.get("domain") == "INBOX"
+        and scoped_calls[1].url.params.get("q") == "criteria"
+        and scoped_calls[1].url.params.get("start") == "2"
+    )
+
     second_page = {"elements": [{"snapshotDomain": "INBOX", "snapshotData": [message()]}]}
     for links in [
         [

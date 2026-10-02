@@ -1,0 +1,12 @@
+{
+  "scenarios": {
+    "missing_content_with_attachment_persists": true,
+    "missing_content_without_attachment_skips": true,
+    "explicit_null_content_rejected": true,
+    "nonstr_content_rejected": true,
+    "empty_string_attachment_persists": true,
+    "empty_plan_live_verifier_succeeds": true,
+    "empty_plan_reports_empty_result": true,
+    "empty_plan_makes_no_writes": true
+  }
+}

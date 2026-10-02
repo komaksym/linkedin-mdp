@@ -5,7 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import httpx
 
@@ -204,6 +204,17 @@ class LinkedInMDPClient:
             next_url = self._next_link(payload, strict=strict_elements)
             if next_url is None:
                 return PageResult(elements=elements, page_count=pages, truncated=False)
+            if strict_elements:
+                parsed = urlparse(next_url)
+                if parsed.path != path:
+                    raise LinkedInAPIError(0, "snapshot next link changed endpoint")
+                next_params = parse_qs(parsed.query, keep_blank_values=True)
+                for key, value in params.items():
+                    expected = [str(value)]
+                    if key in next_params and next_params[key] != expected:
+                        raise LinkedInAPIError(0, "snapshot next link changed request scope")
+                    next_params[key] = expected
+                next_url = parsed._replace(query=urlencode(next_params, doseq=True)).geturl()
             url = next_url
             query = None
 

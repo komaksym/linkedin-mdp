@@ -84,7 +84,6 @@ class VerifiedStore(SupabaseClient):
 
     async def verify_readback(self) -> None:
         """Compare every persisted payload and timestamp with its private write oracle."""
-        assert self.expected
         stored = await self.read_events(self.expected)
         assert set(stored) == {event["external_key"] for event in self.expected}
         for expected in self.expected:
@@ -102,7 +101,7 @@ class VerifiedStore(SupabaseClient):
             ) == datetime.fromisoformat(expected["occurred_at"])
 
 
-async def verify() -> None:
+async def verify() -> bool:
     """Derive the account from complete invitation evidence and verify inbox replay."""
     linkedin = LinkedInMDPClient.from_env()
     configured_store = SupabaseClient.from_env()
@@ -152,6 +151,7 @@ async def verify() -> None:
         assert second.inserted == 0
         assert {event["external_key"] for event in store.expected} == first_keys
         await store.verify_readback()
+        return bool(first_keys)
     finally:
         try:
             await linkedin.aclose()
@@ -162,11 +162,14 @@ async def verify() -> None:
 def main() -> int:
     """Emit only fixed verdicts and keep all exceptions and provider data private."""
     try:
-        asyncio.run(verify())
+        persisted = asyncio.run(verify())
     except Exception:  # noqa: BLE001
         print("live inbox evidence: verification failed")
         return 1
-    print("live inbox evidence: persistence and duplicate-free replay verified")
+    if persisted:
+        print("live inbox evidence: persistence and duplicate-free replay verified")
+    else:
+        print("live inbox evidence: empty result and duplicate-free replay verified")
     return 0
 
 

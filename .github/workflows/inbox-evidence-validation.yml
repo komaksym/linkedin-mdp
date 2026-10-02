@@ -1,0 +1,36 @@
+name: One-time inbox evidence validation
+
+on:
+  push:
+    branches: [validation/inbox-evidence-20261001]
+    paths: [.github/workflows/inbox-evidence-validation.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: connections-reconciliation
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 64d64ea76db9a368399e59fc9a1ced7cc1cf570c
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          version: '0.12.18'
+          python-version: '3.12'
+          enable-cache: false
+      - name: Install runtime
+        run: uv sync --no-dev
+      - name: Verify real inbox persistence and replay
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+          LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202312' }}
+          SUPABASE_URL: https://mvgzdcqhdruhjoexbdqp.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: PYTHONPATH=src .venv/bin/python diagnostics/verify_inbox_live.py

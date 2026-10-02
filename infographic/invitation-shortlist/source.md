@@ -1,9 +1,8 @@
-# Invitations backed by history
-Complete LinkedIn snapshots and recorded invitation evidence establish exclusions.
-Dated employer evidence binds each historical invitation to its company.
-Current US PVF qualification establishes candidate fit.
-Dated priority signals rank eligible candidates using a versioned heuristic.
-Apply the lifetime maximum of three recipients per company and return up to 25 candidates.
-Missing historical company evidence produces a private research queue and withholds invitation recommendations.
-Private JSON and Markdown retain reasons and citations. Recommendation event plans are separate from actual sends.
-No messages or invitations are sent by this slice.
+# Invitation shortlist, revised owner contract
+All outgoing invitation history counts, including recipients outside the CRM.
+Each exact person counts once against their latest known employer, assumed present by the owner.
+Unknown identity or employer withholds recommendations.
+Up to 25 qualified invitations, at most three per company including history and the new shortlist.
+Prior invitations, current connections and opt-outs are excluded.
+Activity, mutual connections, connection count and profile photo provide heuristic priority signals.
+Private report only. No recommendation events or Supabase writes. Owner sends outreach manually.

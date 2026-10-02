@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 70,
+  "scenario_count": 75,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -13,7 +13,13 @@
     "normalized CRM send dates lost or conflicting aliases selected",
     "text or ambiguous opt-out flags admitted recommendations",
     "date-precision event calendar days shifted by UTC conversion",
-    "private-file cleanup masked a real filesystem write failure"
+    "private-file cleanup masked a real filesystem write failure",
+    "undated invitation evidence omitted from latest-employer capacity",
+    "provider, CRM, and Supabase send evidence counted more than once per profile",
+    "conflicting canonical current-employer assignments permitted capacity claims",
+    "candidate qualification employer disagreed with owner mapping",
+    "unknown historical identity omitted from global withhold queue",
+    "read-only report constructed a recommendation persistence event"
   ],
-  "artifact_digest": "a957046e67bb504c22fb35a1eee7f732c40f3054da4dc6acf544168bce6eb0ca"
+  "artifact_digest": "afbef3b90517c3d978d4d9b3453d3aa66cf16bbed6f663ca4e44852dcb6083eb"
 }

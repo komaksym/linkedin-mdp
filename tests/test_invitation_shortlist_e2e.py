@@ -44,6 +44,12 @@ def test_invitation_shortlist_e2e() -> None:
             "text or ambiguous opt-out flags admitted recommendations",
             "date-precision event calendar days shifted by UTC conversion",
             "private-file cleanup masked a real filesystem write failure",
+            "undated invitation evidence omitted from latest-employer capacity",
+            "provider, CRM, and Supabase send evidence counted more than once per profile",
+            "conflicting canonical current-employer assignments permitted capacity claims",
+            "candidate qualification employer disagreed with owner mapping",
+            "unknown historical identity omitted from global withhold queue",
+            "read-only report constructed a recommendation persistence event",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(
@@ -51,4 +57,3 @@ def test_invitation_shortlist_e2e() -> None:
     ).hexdigest()
     artifact = root / "artifacts" / "invitation-shortlist-e2e-evidence.json"
     artifact.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
-

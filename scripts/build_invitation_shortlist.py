@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a private invitation shortlist report and recommendation event plan."""
+"""Build a private, read-only invitation shortlist report."""
 
 from __future__ import annotations
 

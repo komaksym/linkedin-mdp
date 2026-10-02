@@ -8,9 +8,8 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
 from copy import deepcopy
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +17,6 @@ import pytest
 
 from linkedin_mdp_mcp.invitation_shortlist import (
     ShortlistInputError,
-    _history_evidence_id,
     build_invitation_shortlist,
 )
 
@@ -93,17 +91,26 @@ def source_export(
 def qualification(
     *,
     candidates: list[dict[str, Any]] | None = None,
-    history_bindings: list[dict[str, Any]] | None = None,
+    current_employers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build cited synthetic qualification evidence and verified company aliases."""
+    candidate_rows = deepcopy(candidates if candidates is not None else [candidate(PROFILE_A)])
     return {
         "schema_version": 1,
         "company_registry": [
             {"company_id": "co-a", "name": "PVF Company", "aliases": ["PVF Company", "PVF Co"]},
             {"company_id": "co-b", "name": "Second PVF Company", "aliases": ["Second PVF Company"]},
         ],
-        "candidates": deepcopy(candidates if candidates is not None else [candidate(PROFILE_A)]),
-        "history_company_bindings": deepcopy(history_bindings or []),
+        "candidates": candidate_rows,
+        "current_employers": deepcopy(current_employers) if current_employers is not None else {
+            item["profile_url"]: {
+                "company_id": item["identity"]["pvf_employer"]["company_id"],
+                "citations": item["identity"]["pvf_employer"]["citations"],
+            }
+            for item in candidate_rows
+            if item.get("profile_url") and isinstance(item.get("identity"), dict)
+            and isinstance(item["identity"].get("pvf_employer"), dict)
+        },
     }
 
 
@@ -144,36 +151,6 @@ def invitation(profile_url: str) -> dict[str, Any]:
     return {"Direction": "OUTGOING", "inviteeProfileUrl": profile_url, "Sent At": provider_timestamp(NOW)}
 
 
-def history_binding(profile_url: str, source_row: dict[str, Any], company_id: str = "co-a") -> dict[str, Any]:
-    """Bind a historical invitee to cited company evidence at invitation time."""
-    parsed = time.strptime(source_row["Sent At"], "%m/%d/%y, %I:%M %p")
-    event_date = date(parsed.tm_year, parsed.tm_mon, parsed.tm_mday)
-    event_citation = citation("historical-employer", days=(NOW.date() - event_date).days)
-    return {
-        "evidence_id": _history_evidence_id("invitation", source_row),
-        "profile_url": profile_url,
-        "company_id": company_id,
-        "company_at_event": True,
-        "event_date": event_date.isoformat(),
-        "employment_interval": {"start_date": (event_date - timedelta(days=365)).isoformat(), "end_date": event_date.isoformat()},
-        "citations": [event_citation],
-    }
-
-
-def crm_history_binding(profile_url: str, prospect_id: str, event_date: str, company_id: str = "co-a") -> dict[str, Any]:
-    """Bind one dated CRM send to cited company evidence at its exact event date."""
-    event_day = datetime.fromisoformat(event_date).date()
-    return {
-        "evidence_id": _history_evidence_id("crm-invitation", [prospect_id, profile_url, event_date]),
-        "profile_url": profile_url,
-        "company_id": company_id,
-        "company_at_event": True,
-        "event_date": event_date,
-        "employment_interval": {"start_date": (event_day - timedelta(days=365)).isoformat(), "end_date": event_date},
-        "citations": [citation("historical-crm-employer", days=(NOW.date() - event_day).days)],
-    }
-
-
 def run(source: dict[str, Any], qualification_data: dict[str, Any], *, cap_scope: str = "all_history") -> dict[str, Any]:
     """Run the pure shortlist decision with a fixed, timezone-aware clock."""
     return build_invitation_shortlist(source, qualification_data, cap_scope=cap_scope, now=NOW)
@@ -184,7 +161,7 @@ def test_withdrawn_history_still_excludes_profile_after_thirty_one_days() -> Non
     old = NOW - timedelta(days=31)
     row = invitation(PROFILE_A)
     row["Sent At"] = provider_timestamp(old)
-    result = run(source_export(invitations=[row]), qualification(history_bindings=[history_binding(PROFILE_A, row)]))
+    result = run(source_export(invitations=[row]), qualification())
     assert result["invitations"] == []
     assert result["excluded_counts"]["previously_invited"] == 1
 
@@ -222,12 +199,15 @@ def test_company_cap_counts_distinct_profiles_across_verified_aliases() -> None:
         {"id": "tracked-3", "linkedin_url": PROFILE_C, "attributes": {"Company": "PVF Company", "Invite Sent Date": "2026-01-02"}},
     ]
     candidates = [candidate(PROFILE_A), candidate(PROFILE_B), candidate(PROFILE_C)]
-    bindings = [
-        crm_history_binding(PROFILE_B, "tracked-1", "2026-01-01"),
-        crm_history_binding(PROFILE_B, "tracked-2", "2026-02-01"),
-        crm_history_binding(PROFILE_C, "tracked-3", "2026-01-02"),
-    ]
-    result = run(source_export(prospects=prospects), qualification(candidates=candidates, history_bindings=bindings))
+    employer_map = {
+        item["profile_url"]: {"company_id": "co-a", "citations": [citation("current-employer")]}
+        for item in candidates
+    }
+    employer_map.update({
+        url: {"company_id": "co-a", "citations": [citation("current-employer-alias")]}
+        for url in (PROFILE_B, "https://linkedin.com/in/person-b/", PROFILE_C)
+    })
+    result = run(source_export(prospects=prospects), qualification(candidates=candidates, current_employers=employer_map))
     assert [item["profile_url"] for item in result["invitations"]] == [PROFILE_A]
     assert result["company_usage"]["co-a"]["recorded"] == 2
     assert result["company_usage"]["co-a"]["remaining_slots"] == 1
@@ -236,15 +216,16 @@ def test_company_cap_counts_distinct_profiles_across_verified_aliases() -> None:
 def test_all_history_with_missing_employer_binding_withholds_shortlist_and_queues_research() -> None:
     """An unbound prior invite blocks universal cap claims without faking an empty pass."""
     result = run(source_export(invitations=[invitation(PROFILE_B)]), qualification())
-    assert result["status"] == "withheld_history_company_bindings"
+    assert result["status"] == "withheld_current_employer_assignments"
     assert result["invitations"] == []
     queued = result["research_queue"][0]
-    assert queued["reason"] == "company_at_invitation_unbound"
+    assert queued["reason"] == "current_employer_missing"
     assert queued["evidence_id"].startswith("history-evidence-sha256:")
     assert queued["profile_url"] == PROFILE_B
     assert queued["source_ref"] == "snapshots.INVITATIONS.rows[0]"
     assert queued["event_date"] == NOW.date().isoformat()
-    assert result["company_usage"]["co-a"] == {"recorded": None, "remaining_slots": None}
+    assert result["company_usage"]["co-a"]["recorded"] is None
+    assert result["company_usage"]["co-a"]["remaining_slots"] is None
 
 
 def test_provider_local_invitation_timestamp_preserves_calendar_day_precision() -> None:
@@ -257,7 +238,7 @@ def test_provider_local_invitation_timestamp_preserves_calendar_day_precision() 
     assert queued["time_precision"] == "provider_local_day"
     assert queued["timezone"] == "unknown"
     assert queued["source_time"] == "9/27/26, 2:20 PM"
-    assert queued["reason"] == "company_at_invitation_unbound"
+    assert queued["reason"] == "current_employer_missing"
 
 
 @pytest.mark.parametrize("timestamp", ["13/27/26, 2:20 PM", "09/27/2026, 2:20 PM", "#REF!"])
@@ -268,7 +249,7 @@ def test_unknown_provider_timestamp_formats_remain_unresolved(timestamp: str) ->
     result = run(source_export(invitations=[row]), qualification())
     queued = next(item for item in result["research_queue"] if item["source_ref"] == "snapshots.INVITATIONS.rows[0]")
     assert queued["event_date"] is None
-    assert queued["reason"] == "invitation_timestamp_unknown"
+    assert queued["reason"] == "current_employer_missing"
 
 
 def test_observation_timestamp_does_not_masquerade_as_invitation_date() -> None:
@@ -282,9 +263,11 @@ def test_observation_timestamp_does_not_masquerade_as_invitation_date() -> None:
         "payload": {"timestamp_precision": "date", "timestamp_semantics": "observed_at"},
     }
     result = run(source_export(events=[event]), qualification())
-    queued = next(item for item in result["research_queue"] if item["source_ref"] == "events.rows[0]")
-    assert queued["event_date"] is None
-    assert queued["reason"] == "invitation_timestamp_unknown"
+    audited = result["company_usage"]["co-a"]["evidence"][0]
+    assert audited["source_ref"] == "events.rows[0]"
+    assert audited["event_date"] is None
+    assert audited["time_precision"] == "unknown"
+    assert audited["timezone"] == "unknown"
 
 
 def test_explicit_actual_semantics_uses_the_recorded_calendar_day() -> None:
@@ -298,9 +281,11 @@ def test_explicit_actual_semantics_uses_the_recorded_calendar_day() -> None:
         "payload": {"timestamp_precision": "date", "timestamp_semantics": "actual"},
     }
     result = run(source_export(events=[event]), qualification())
-    queued = next(item for item in result["research_queue"] if item["source_ref"] == "events.rows[0]")
-    assert queued["event_date"] == "2026-09-27"
-    assert queued["time_precision"] == "calendar_day"
+    audited = result["company_usage"]["co-a"]["evidence"][0]
+    assert audited["source_ref"] == "events.rows[0]"
+    assert audited["event_date"] == "2026-09-27"
+    assert audited["time_precision"] == "calendar_day"
+    assert audited["timezone"] == "unknown"
 
 
 def test_mdp_history_uses_supported_provider_sent_date_semantics() -> None:
@@ -318,10 +303,11 @@ def test_mdp_history_uses_supported_provider_sent_date_semantics() -> None:
         },
     }
     result = run(source_export(events=[event]), qualification())
-    queued = next(item for item in result["research_queue"] if item["source_ref"] == "events.rows[0]")
-    assert queued["event_date"] == "2026-09-27"
-    assert queued["time_precision"] == "provider_local_day"
-    assert queued["timezone"] == "unknown"
+    audited = result["company_usage"]["co-a"]["evidence"][0]
+    assert audited["source_ref"] == "events.rows[0]"
+    assert audited["event_date"] == "2026-09-27"
+    assert audited["time_precision"] == "provider_local_day"
+    assert audited["timezone"] == "unknown"
 
 
 def test_distinct_history_rows_without_event_ids_keep_distinct_bindings() -> None:
@@ -337,9 +323,9 @@ def test_distinct_history_rows_without_event_ids_keep_distinct_bindings() -> Non
         {**base, "occurred_at": "2026-09-26T00:00:00Z"},
     ]
     result = run(source_export(events=events), qualification())
-    queued = [item for item in result["research_queue"] if item["source_ref"].startswith("events.rows[")]
-    assert {item["source_ref"] for item in queued} == {"events.rows[0]", "events.rows[1]"}
-    assert len({item["evidence_id"] for item in queued}) == 2
+    audited = result["company_usage"]["co-a"]["evidence"]
+    assert {item["source_ref"] for item in audited} == {"events.rows[0]", "events.rows[1]"}
+    assert len({item["evidence_id"] for item in audited}) == 2
 
 
 def test_duplicate_prospect_ids_fail_before_event_identity_join() -> None:
@@ -349,16 +335,16 @@ def test_duplicate_prospect_ids_fail_before_event_identity_join() -> None:
         run(source_export(prospects=prospects), qualification())
 
 
-def test_bindings_are_per_historical_invitation_event_not_current_employer() -> None:
-    """A person invited at two companies consumes one distinct slot at both companies."""
+def test_current_employer_owns_all_historical_invitation_dates() -> None:
+    """Historical employer clues do not replace the latest-known employer assumption."""
     first = invitation(PROFILE_B)
     first["Sent At"] = provider_timestamp(NOW - timedelta(days=40))
     second = invitation(PROFILE_B)
     second["Sent At"] = provider_timestamp(NOW - timedelta(days=10))
-    bindings = [history_binding(PROFILE_B, first, "co-a"), history_binding(PROFILE_B, second, "co-b")]
-    result = run(source_export(invitations=[first, second]), qualification(history_bindings=bindings))
+    data = qualification(current_employers={PROFILE_B: {"company_id": "co-b", "citations": [citation("latest-employer")]}})
+    result = run(source_export(invitations=[first, second]), data)
     assert result["status"] == "ready"
-    assert result["company_usage"]["co-a"]["recorded"] == 1
+    assert result["company_usage"]["co-a"]["recorded"] == 0
     assert result["company_usage"]["co-b"]["recorded"] == 1
 
 
@@ -464,7 +450,7 @@ def test_bad_or_incomplete_transport_fails_closed(mutation: str) -> None:
         source["snapshots"]["CONNECTIONS"]["raw_elements"][0]["snapshotData"] = deepcopy(source["snapshots"]["CONNECTIONS"]["rows"])
     if mutation == "unsupported-url":
         result = run(source, qualification())
-        assert result["status"] == "withheld_history_company_bindings"
+        assert result["status"] == "withheld_current_employer_assignments"
         assert "unsupported_connected_profile_url" in {item["reason"] for item in result["research_queue"]}
     else:
         with pytest.raises(ShortlistInputError):
@@ -485,7 +471,7 @@ def test_history_can_be_audited_before_any_company_registry_exists() -> None:
     data["company_registry"] = []
     row = invitation(PROFILE_B)
     result = run(source_export(invitations=[row]), data)
-    assert result["status"] == "withheld_history_company_bindings"
+    assert result["status"] == "withheld_current_employer_assignments"
     assert result["company_usage"] == {}
     assert result["research_queue"]
 
@@ -539,8 +525,15 @@ def test_alias_company_slot_is_applied_after_rank_and_list_never_exceeds_cap() -
         for index in range(3)
     ]
     prospects.extend(prospect_row(item["profile_url"], f"candidate-{index}") for index, item in enumerate(candidates))
-    bindings = [crm_history_binding(f"https://www.linkedin.com/in/old-{index}", f"tracked-{index}", f"2026-01-0{index + 1}") for index in range(3)]
-    result = run(source_export(prospects=prospects), qualification(candidates=candidates, history_bindings=bindings))
+    employer_map = {
+        item["profile_url"]: {"company_id": item["identity"]["pvf_employer"]["company_id"], "citations": item["identity"]["pvf_employer"]["citations"]}
+        for item in candidates
+    }
+    employer_map.update({
+        f"https://www.linkedin.com/in/old-{index}": {"company_id": "co-a", "citations": [citation(f"old-{index}")]}
+        for index in range(3)
+    })
+    result = run(source_export(prospects=prospects), qualification(candidates=candidates, current_employers=employer_map))
     assert result["invitations"] == []
     assert result["company_usage"]["co-a"]["remaining_slots"] == 0
 
@@ -590,26 +583,18 @@ def test_dated_crm_sent_fact_queues_event_binding_but_acceptance_does_not() -> N
         {"id": "accepted-c", "linkedin_url": PROFILE_C, "attributes": {"Company": "PVF Company", "Accepted Date": "2026-08-02"}},
     ]
     result = run(source_export(prospects=prospects), qualification(candidates=[candidate(PROFILE_B), candidate(PROFILE_C)]), cap_scope="all_history")
-    assert result["status"] == "withheld_history_company_bindings"
-    assert result["company_usage"]["co-a"] == {"recorded": None, "remaining_slots": None}
+    assert result["status"] == "ready"
+    assert result["company_usage"]["co-a"]["recorded"] == 1
     assert result["excluded_counts"]["previously_invited"] == 2
-    assert len(result["research_queue"]) == 1
-    queued = result["research_queue"][0]
-    assert queued["profile_url"] == PROFILE_B
-    assert queued["source_ref"] == "prospects.rows[1]"
-    assert queued["event_date"] == "2026-08-01"
+    assert result["research_queue"] == []
 
 
-def test_recommendations_are_event_plans_not_sends() -> None:
-    """The output proposes auditable events without calling a send surface."""
+def test_recommendations_are_read_only_report_rows() -> None:
+    """The output does not construct database persistence events."""
     result = run(source_export(), qualification(), cap_scope="all_history")
-    planned = result["event_plan"]
-    assert len(planned) == 1
-    assert planned[0]["source"] == "AGENT_ACTION_REPORT"
-    assert planned[0]["event_type"] == "LINKEDIN_INVITATION_RECOMMENDED"
-    assert "not fetched" in result["evidence_validation"]
-    assert "not fetched" in planned[0]["payload"]["qualification_attestation"]
-    assert not any("sent" in key.lower() for key in planned[0])
+    assert result["invitations"]
+    assert "event_plan" not in result
+    assert "external_key" not in json.dumps(result)
 
 
 def test_cli_writes_private_outputs_and_sanitized_stdout() -> None:
@@ -684,20 +669,22 @@ def test_complete_snapshot_without_elements_is_valid(domain: str) -> None:
 
 @pytest.mark.parametrize("key", ["invite sent date", "invite_sent_date", "INVITE SENT DATE"])
 def test_normalized_crm_send_date_retains_binding(key: str) -> None:
-    """Every recognized spelling of a CRM date retains the same event-date binding."""
+    """Every recognized spelling of a CRM date remains outgoing evidence regardless of date proof."""
     prospects = [prospect_row(PROFILE_A, "tracked-a"), {"id": "tracked-b", "linkedin_url": PROFILE_B, "attributes": {key: "2026-09-27"}}]
-    result = run(source_export(prospects=prospects), qualification(history_bindings=[crm_history_binding(PROFILE_B, "tracked-b", "2026-09-27")]))
+    employers = {PROFILE_A: {"company_id": "co-a", "citations": [citation("latest-a")]}, PROFILE_B: {"company_id": "co-a", "citations": [citation("latest-b")]}}
+    result = run(source_export(prospects=prospects), qualification(current_employers=employers))
     assert result["status"] == "ready"
     assert result["company_usage"]["co-a"]["recorded"] == 1
 
 
 def test_conflicting_normalized_crm_dates_remain_unknown() -> None:
-    """Conflicting alias values never choose an invitation day by dictionary order."""
+    """Conflicting CRM dates do not affect latest-employer capacity accounting."""
     row = prospect_row(PROFILE_B, "tracked-b")
     row["attributes"] = {"Invite Sent Date": "2026-09-27", "invite_sent_date": "2026-09-28"}
-    result = run(source_export(prospects=[row]), qualification())
-    assert result["status"] == "withheld_history_company_bindings"
-    assert result["research_queue"][0]["event_date"] is None
+    employer = {PROFILE_B: {"company_id": "co-a", "citations": [citation("latest-b")]}}
+    result = run(source_export(prospects=[row]), qualification(current_employers=employer))
+    assert result["status"] == "ready"
+    assert result["company_usage"]["co-a"]["evidence"][0]["event_date"] is None
 
 
 @pytest.mark.parametrize("value", ["true", " TRUE ", "yes", "1", 1, "unrecognized"])
@@ -755,3 +742,66 @@ else:
         assert result.returncode == 0, result.stdout + result.stderr
         assert output.exists()
         assert stat.S_IMODE(output.stat().st_mode) == 0o600
+
+
+def test_present_employer_counts_undated_all_history_once_and_keeps_audit_pointers() -> None:
+    """Undated invitation, CRM, and event evidence count once at latest employer with source audit retained."""
+    invite = {"Direction": "OUTGOING", "inviteeProfileUrl": PROFILE_B}
+    prospects = [prospect_row(PROFILE_A, "tracked-a"), {
+        "id": "tracked-b", "linkedin_url": PROFILE_B,
+        "attributes": {"Invite Status": "sent", "Company": "Wrong historical CRM label"},
+    }]
+    events = [{"id": "sent-b", "prospect_id": "tracked-b", "event_type": "LINKEDIN_INVITE_SENT", "source": "CRM", "payload": {}}]
+    mapping = {
+        PROFILE_A: {"company_id": "co-a", "citations": [citation("candidate-current-employer")]},
+        PROFILE_B: {"company_id": "co-a", "citations": [citation("latest-employer")]},
+    }
+    result = run(source_export(invitations=[invite], prospects=prospects, events=events), qualification(current_employers=mapping))
+    assert result["status"] == "ready"
+    assert result["company_usage"]["co-a"]["recorded"] == 1
+    assert [item["profile_url"] for item in result["invitations"]] == [PROFILE_A]
+    evidence = result["company_usage"]["co-a"]["evidence"]
+    assert {item["source_ref"] for item in evidence} == {
+        "snapshots.INVITATIONS.rows[0]", "prospects.rows[1]", "events.rows[0]",
+    }
+    assert len({item["evidence_id"] for item in evidence}) == 3
+    assert result["company_usage"]["co-a"]["recorded"] == 1
+
+
+def test_current_employer_conflict_across_canonical_profile_keys_withholds_all() -> None:
+    """Different latest-employer mappings for URL aliases cannot produce cap claims."""
+    alias = "https://linkedin.com/in/person-b/"
+    invite = {"Direction": "OUTGOING", "inviteeProfileUrl": PROFILE_B}
+    mapping = {
+        PROFILE_B: {"company_id": "co-a", "citations": [citation("employer-a")]},
+        alias: {"company_id": "co-b", "citations": [citation("employer-b")]},
+    }
+    result = run(source_export(invitations=[invite]), qualification(current_employers=mapping))
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert result["invitations"] == []
+    assert result["company_usage"]["co-a"]["recorded"] is None
+    assert result["research_queue"][0]["reason"] == "conflicting_current_employer_assignments"
+
+
+def test_candidate_company_conflict_with_current_employer_is_withheld() -> None:
+    """A candidate's qualification company must agree with the owner mapping."""
+    mapping = {PROFILE_A: {"company_id": "co-b", "citations": [citation("latest-employer")]}}
+    result = run(source_export(), qualification(current_employers=mapping))
+    assert result["invitations"] == []
+    assert result["withheld_counts"]["current_employer_conflict"] == 1
+
+
+def test_unknown_historical_identity_or_employer_globally_withholds_capacity() -> None:
+    """Unregistered or unsupported invite identities cannot be silently skipped."""
+    invite = {"Direction": "OUTGOING", "inviteeProfileUrl": "https://linkedin.com.evil.test/in/person-x"}
+    result = run(source_export(invitations=[invite]), qualification())
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert result["invitations"] == []
+    assert result["research_queue"]
+
+
+def test_read_only_report_has_no_recommendation_event_plan() -> None:
+    """Recommendations remain report output and never contain persistence event plans."""
+    result = run(source_export(), qualification())
+    assert "event_plan" not in result
+    assert "external_key" not in json.dumps(result)

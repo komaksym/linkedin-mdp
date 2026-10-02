@@ -49,7 +49,7 @@ The example uses synthetic identities and URLs.
 
 ## All-history capacity
 
-The CLI and pure function require `--cap-scope all_history`. Every outgoing invitation source is grouped by normalized exact profile identity. The report counts each person once against their mapped latest-known employer across provider invitations, explicit CRM sent facts, and actual Supabase invitation events. Historical invitation dates and previous employer claims remain audit data. They do not gate capacity or change the mapped employer.
+The CLI and pure function require `--cap-scope all_history`. Every outgoing invitation source is grouped by normalized exact profile identity. Each historical person consumes one invitation slot at each company in their complete present-employer set, regardless of whether the evidence comes from provider invitations, explicit CRM sent facts, or actual Supabase invitation events. Historical invitation dates and previous employer claims remain audit data. They do not gate capacity or change the present-employer set.
 
 The JSON audit retains each source evidence ID, source row pointer, observed event date when available, profile URL, and the current-employer citations. Unknown or unsupported invitation identities and profiles without a valid current-employer mapping enter `research_queue`. Any unresolved queue row withholds the entire shortlist and all remaining-slot claims. The `Company` field in CRM is never employer proof. Accepted dates and connections do not consume invitation slots. They still exclude people from recommendations under the existing eligibility rules.
 

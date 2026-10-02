@@ -119,6 +119,34 @@ async def main() -> None:
         and event["payload"]["timestamp_semantics"] == "actual"
     )
 
+    utc_row = message(DATE="2026-09-30 10:00:00 UTC")
+    utc_state: dict[str, dict[str, Any]] = {}
+    utc_first, _, utc_stored = await scenario([utc_row], apply=True, store_state=utc_state)
+    verdicts["provider_utc_suffix_persisted"] = (
+        utc_first.planned_events == 1
+        and len(utc_stored) == 1
+        and utc_stored[0]["occurred_at"] == "2026-09-30T10:00:00+00:00"
+        and utc_stored[0]["payload"]["timestamp_semantics"] == "actual"
+        and utc_stored[0]["payload"]["provider_timestamp"] == utc_row["DATE"]
+        and "provider_local_time_timezone_unspecified" not in utc_stored[0]["payload"]
+    )
+    utc_second, _, utc_replay = await scenario([utc_row], apply=True, store_state=utc_state)
+    verdicts["provider_utc_suffix_replay_is_idempotent"] = (
+        utc_first.inserted == 1 and utc_second.inserted == 0 and not utc_replay
+    )
+
+    for value in (
+        "2026-09-30 10:00:00 PST",
+        "2026-09-30 10:00:00 XYZ",
+        "2026-09-30 UTC",
+        "2026-09-30 10:00:00+02:00 UTC",
+        "2026-02-30 10:00:00 UTC",
+    ):
+        invalid_time, _, invalid_write = await scenario([message(DATE=value)], apply=True)
+        if invalid_time.planned_events or invalid_write:
+            raise AssertionError("ambiguous or invalid suffixed provider time was accepted")
+    verdicts["ambiguous_suffixed_timestamps_rejected"] = True
+
     provider_string_shape = message(**{"RECIPIENT PROFILE URLS": ACCOUNT})
     provider_string_result, _, provider_string_stored = await scenario([provider_string_shape], apply=True)
     verdicts["provider_string_recipients_supported"] = (

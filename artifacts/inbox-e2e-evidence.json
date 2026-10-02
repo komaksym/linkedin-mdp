@@ -1,8 +1,9 @@
 {
   "passed": true,
-  "scenario_count": 36,
+  "scenario_count": 39,
   "scenarios": {
     "all_snapshot_links_validated": true,
+    "ambiguous_suffixed_timestamps_rejected": true,
     "attachment_only_content_is_preserved": true,
     "aware_timestamp_is_actual": true,
     "cleanup_attempts_both_clients": true,
@@ -28,6 +29,8 @@
     "page_cap_blocks_before_write": true,
     "prospect_alias_collision_skipped": true,
     "provider_string_recipients_supported": true,
+    "provider_utc_suffix_persisted": true,
+    "provider_utc_suffix_replay_is_idempotent": true,
     "regional_profile_canonicalized": true,
     "self_message_skipped": true,
     "self_message_taints_entire_thread": true,
@@ -39,5 +42,5 @@
     "unknown_peer_skipped": true,
     "writes_are_opt_in": true
   },
-  "source_revision": "caa951c5421dad1790576c6fa1ce0b4fa37889d9+working-tree"
+  "source_revision": "64d64ea76db9a368399e59fc9a1ced7cc1cf570c+working-tree"
 }

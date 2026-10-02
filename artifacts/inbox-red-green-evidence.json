@@ -10,10 +10,14 @@
   "before_subject_identity_fix": {
     "subject_variants_keep_distinct_identity": false
   },
+  "before_provider_utc_suffix_fix": {
+    "provider_utc_suffix_persisted": false,
+    "provider_utc_suffix_replay_is_idempotent": false
+  },
   "after_fixes": {
-    "scenario_count": 36,
+    "scenario_count": 39,
     "passed": true,
     "verdict_artifact": "artifacts/inbox-e2e-evidence.json"
   },
-  "live_persistence": "not run; approval pending"
+  "live_persistence": "approved validation found unsupported explicit UTC timestamps; corrected revision awaits live replay"
 }

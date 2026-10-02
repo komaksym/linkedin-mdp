@@ -82,7 +82,10 @@ def _timestamp(value: Any, observed_at: datetime) -> tuple[str, str, str, bool, 
     if "T" not in source and " " not in source:
         return None
     try:
-        parsed = datetime.fromisoformat(source)
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC", source):
+            parsed = datetime.strptime(source, "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=UTC)
+        else:
+            parsed = datetime.fromisoformat(source)
     except ValueError:
         return None
     if parsed.tzinfo is None or parsed.utcoffset() is None:

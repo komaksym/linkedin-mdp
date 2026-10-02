@@ -1,5 +1,17 @@
 # Implementation plans
 
+## Combined private action report
+
+Summary: combine the existing invitation shortlist JSON and private DM action JSON into one owner-reviewable report. The combined renderer is pure; a separate command can publish its prepared text into the existing owner-only Google Doc region.
+
+- [x] Pin the actual upstream shapes and write failing synthetic CLI and Google HTTP end-to-end cases.
+- [x] Implement a validating combined renderer, private offline CLI, and constrained Google text publication entry point.
+- [x] Add a separate Google-only publication CLI, document usage and uncertainty, then pass scoped and full validation.
+
+Throughput checkpoint: the isolated branch has one exclusive writer. Offline composition and Google publication share only the prepared text contract. No live provider, database, sending, schema, workflow, or deployment work is in this slice. Parent owns infographic, review, and PR publication.
+
+Verification: 38 synthetic CLI/Google HTTP E2E verdicts pass with a resettable fixed-verdict evidence artifact. The full repository suite passes 24 checks in an isolated MCP 2 runtime. Scoped Ruff, mypy across 13 source files, `git diff --check`, and sdist/wheel build pass. Only synthetic data was used; live OAuth delivery and fresh source acquisition are outside this slice. The parent owns integration with the later DM attachment-only producer fix.
+
 ## Private DM evidence and action report
 
 Summary: classify positive sent and received DM evidence once for reuse by the later actual-action sync, then build a read-only private report of manual reply and follow-up reminders and qualified researched first-DM drafts. Invitation notes, ambiguous history, and incomplete coverage remain explicit unknowns.
@@ -214,3 +226,5 @@ DM parent integration: rebased the unpublished branch onto PR12 correction56324a
 PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppression and false opt-out reason before production edits. Attribute group uncertainty only to complete identifiable thread participants; malformed participant evidence remains global. Unknown policy opt-out state remains withheld under an explicit unverified-policy reason. Expanded61synthetic E2E,23fulltests,scopedRuff,10sourcefilemypy,sdist/wheel passed.
 
 PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.
+
+Parent combined-report integration: rebased unpublished branch onto PR13 attachment-only correction82456ae. Actual producer fixtures, offlineCLI and simulatedGoogle HTTP38scenario proof passed;24fulltests,13filemypy,scopedRuff,source/wheel builds anddiffcheck passed. Inspectedraster included. Direct harness requires declareddevdependencies andPYTHONPATH=.:src; documented command. No liveOAuth/Docdelivery or source freshness claim.

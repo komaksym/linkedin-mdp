@@ -105,6 +105,50 @@ async def main() -> None:
     """Run deterministic HTTP-boundary inbox scenarios and save safe verdicts."""
     verdicts: dict[str, bool] = {}
 
+    unicode_peer = "https://www.linkedin.com/in/synthetíc-名字-☀"
+    encoded_peer = "https://www.linkedin.com/in/synthet%C3%ADc-%E5%90%8D%E5%AD%97-%E2%98%80"
+    state: dict[str, dict[str, Any]] = {}
+    result, _, stored = await scenario(
+        [message(**{"SENDER PROFILE URL": unicode_peer})], apply=True,
+        prospects=[{"id": "unicode-peer", "linkedin_url_key": unicode_peer}], store_state=state,
+    )
+    verdicts["unicode_profile_identity_persisted"] = (
+        result.inserted == 1 and len(stored) == 1
+        and stored[0]["prospect_id"] == "unicode-peer"
+        and stored[0]["payload"]["sender_profile_url"] == unicode_peer
+    )
+    result, _, stored = await scenario(
+        [message(**{"SENDER PROFILE URL": encoded_peer})], apply=True,
+        prospects=[{"id": "unicode-peer", "linkedin_url_key": unicode_peer}], store_state=state,
+    )
+    verdicts["utf8_profile_alias_replay_is_duplicate_free"] = result.planned_events == 1 and result.inserted == 0 and not stored
+    result, _, stored = await scenario(
+        [message(**{"SENDER PROFILE URL": "https://www.linkedin.com/in/synthetic-名字-e\u0301"})], apply=True,
+        prospects=[{"id": "combining-peer", "linkedin_url_key": "https://www.linkedin.com/in/synthetic-名字-e\u0301"}],
+    )
+    verdicts["combining_profile_identity_preserved"] = result.inserted == 1 and stored[0]["prospect_id"] == "combining-peer"
+    for label, char in (("tab", "\t"), ("carriage_return", "\r"), ("newline", "\n"), ("leading_nul", "\x00")):
+        peer = unicode_peer.replace("synthetíc", "synthe" + char + "tíc") if label != "leading_nul" else char + unicode_peer
+        result, _, stored = await scenario(
+            [message(**{"SENDER PROFILE URL": peer})], apply=True,
+            prospects=[{"id": "unicode-peer", "linkedin_url_key": unicode_peer}],
+        )
+        verdicts["literal_" + label + "_profile_rejected"] = result.planned_events == 0 and not stored
+    for label, slug in (
+        ("malformed_utf8", "synthetic-%FF"),
+        ("malformed_percent", "synthetic-%G0"),
+        ("encoded_separator", "synthetic-%2Fother"),
+        ("encoded_control", "synthetic-%00other"),
+        ("encoded_whitespace", "synthetic-%20other"),
+        ("double_encoded_separator", "synthetic-%252Fother"),
+    ):
+        peer = "https://www.linkedin.com/in/" + slug
+        result, _, stored = await scenario(
+            [message(**{"SENDER PROFILE URL": peer})], apply=True,
+            prospects=[{"id": "invalid-peer", "linkedin_url_key": peer}],
+        )
+        verdicts[label + "_profile_rejected"] = result.planned_events == 0 and not stored
+
     result, _, stored = await scenario([message()], apply=True)
     event = stored[0]
     verdicts["inbound_persisted"] = (

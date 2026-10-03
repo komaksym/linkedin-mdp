@@ -1,5 +1,19 @@
 # Implementation plans
 
+## Private prospect creation timestamp
+
+Summary: export the existing `prospects.created_at` field in the encrypted private source bundle, preserving its provider value without deriving or backfilling dates.
+
+Failure cases: omission from the Supabase projection drops exact timestamps on each counted page; a missing source value must not be fabricated; source or paging failure must not create an artifact; plaintext must not appear in the ciphertext or fixed CLI logs.
+
+Milestones: (1) make the synthetic HTTP and CMS roundtrip fail on timestamp omission, (2) add the field to the prospect projection, (3) rerun the E2E and repository checks. No schema, workflow, live source call, or outreach change belongs to this slice.
+
+Throughput checkpoint: one owner holds this isolated checkout and its coupled collector/E2E files. The fixed `TABLE_COLUMNS` map owns the row shape; the database mock honors `select`, so the E2E detects projection loss. Review and PR publication remain with the coordinating task.
+
+Validation: the timestamp scenario failed before the projection edit and all 19 synthetic verdicts passed afterward. Scoped Ruff and mypy passed, the full 21-test repository suite passed in an isolated runtime using the declared dependencies, and source/wheel builds passed. The initially installed local MCP package lacked `Client`; using the declared project runtime resolved that collection failure. Independent read-only review found no actionable issues.
+
+PR review correction: two synthetic failure injections first showed that an unrelated encryption fault could count as an expected negative rejection and an early certificate failure preserved prior all-true evidence. The E2E now attributes each negative case to its expected collection error, lets encryption failures propagate, and records failed run status before certificate generation. All 22 synthetic verdicts, 21 isolated repository tests, scoped Ruff, 10-file mypy, and wheel build pass after the correction.
+
 ## Inbox evidence and actionable report
 
 Summary: add the first reviewable prerequisite for the owner's two-list report. Preserve private message observations for existing prospects without treating unknown invitation notes as confirmed DMs. The complete desired report contract is in `docs/action-report-contract.md`.

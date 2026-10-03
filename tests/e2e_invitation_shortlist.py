@@ -28,13 +28,16 @@ PROFILE_B = "https://www.linkedin.com/in/person-b"
 PROFILE_C = "https://www.linkedin.com/in/person-c"
 
 
-def citation(path: str, *, days: int = 2) -> dict[str, str]:
-    """Return one synthetic, dated citation without real person data."""
-    return {
+def citation(path: str, *, days: int = 2, profile_url: str | None = None) -> dict[str, Any]:
+    """Return one synthetic, dated citation with optional exact-profile attestation."""
+    row: dict[str, Any] = {
         "url": f"https://evidence.example/{path}",
         "source_date": (NOW - timedelta(days=days)).date().isoformat(),
         "retrieved_at": (NOW - timedelta(hours=1)).isoformat(),
     }
+    if profile_url is not None:
+        row["profile_url"] = profile_url
+    return row
 
 
 def prospect_row(profile_url: str, prospect_id: str) -> dict[str, Any]:
@@ -127,14 +130,14 @@ def candidate(
     return {
         "profile_url": profile_url,
         "identity": {
-            "name": {"value": name, "citations": [citation("identity")]},
-            "current_role": {"value": "Synthetic Buyer", "citations": [citation("role")]},
-            "country": {"value": "US", "citations": [citation("country")]},
+            "name": {"value": name, "citations": [citation("identity", profile_url=profile_url)]},
+            "current_role": {"value": "Synthetic Buyer", "citations": [citation("role", profile_url=profile_url)]},
+            "country": {"value": "US", "citations": [citation("country", profile_url=profile_url)]},
             "pvf_employer": {
                 "value": True,
                 "company_id": company_id,
                 "company_name": company_name,
-                "citations": [citation("employer")],
+                "citations": [citation("employer", profile_url=profile_url)],
             },
         },
         "rank_factors": deepcopy(factors or {}),
@@ -155,6 +158,15 @@ def invitation(profile_url: str) -> dict[str, Any]:
 def run(source: dict[str, Any], qualification_data: dict[str, Any], *, cap_scope: str = "all_history") -> dict[str, Any]:
     """Run the pure shortlist decision with a fixed, timezone-aware clock."""
     return build_invitation_shortlist(source, qualification_data, cap_scope=cap_scope, now=NOW)
+
+
+def test_candidate_citations_must_attest_exact_profile() -> None:
+    """A citation for another LinkedIn profile cannot qualify this candidate."""
+    row = candidate(PROFILE_A)
+    row["identity"]["name"]["citations"][0]["profile_url"] = PROFILE_B
+    result = run(source_export(), qualification(candidates=[row]))
+    assert result["invitations"] == []
+    assert result["withheld_counts"]["qualification_invalid_citation"] == 1
 
 
 def test_withdrawn_history_still_excludes_profile_after_thirty_one_days() -> None:

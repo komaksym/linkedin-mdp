@@ -28,6 +28,18 @@ def test_invitation_shortlist_e2e() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     match = re.search(r"(\d+) passed", result.stdout)
     assert match is not None, result.stdout + result.stderr
+
+    collection = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "tests/e2e_invitation_shortlist.py"],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert collection.returncode == 0, collection.stdout + collection.stderr
+    assert "test_candidate_citations_must_attest_exact_profile" in collection.stdout
+
     body = {
         "schema_version": 1,
         "scenario_count": int(match.group(1)),
@@ -60,6 +72,7 @@ def test_invitation_shortlist_e2e() -> None:
             "UTC conversion overflow aborted timestamp enrichment",
             "private Markdown omitted the creation-time prospect ID",
             "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
+            "candidate qualification citation attested a different profile",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

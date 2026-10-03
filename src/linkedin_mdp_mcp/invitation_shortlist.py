@@ -160,13 +160,20 @@ def _date(value: Any, code: str) -> date:
 
 
 def _citation_list(
-    value: Any, now: datetime, *, max_age: timedelta, check_source_date: bool = True
+    value: Any,
+    now: datetime,
+    *,
+    max_age: timedelta,
+    check_source_date: bool = True,
+    profile_url: str | None = None,
 ) -> tuple[Citation, ...]:
-    """Validate dated HTTP citations and reject stale or future-dated evidence."""
+    """Validate dated HTTP citations, freshness, and optional exact-profile binding."""
     items = _array(value, "qualification_missing_citation")
     citations: list[Citation] = []
     for item in items:
         row = _object(item, "qualification_invalid_citation")
+        if profile_url is not None and normalize_profile_url(row.get("profile_url")) != profile_url:
+            raise ShortlistInputError("qualification_invalid_citation")
         url = row.get("url")
         if not isinstance(url, str):
             raise ShortlistInputError("qualification_invalid_citation")
@@ -315,7 +322,9 @@ def _candidate(row: Mapping[str, Any], companies: Mapping[str, Company], aliases
         if not isinstance(item, Mapping):
             return None, reason
         try:
-            parsed_citations[key] = _citation_list(item.get("citations"), now, max_age=_QUALIFICATION_MAX_AGE)
+            parsed_citations[key] = _citation_list(
+                item.get("citations"), now, max_age=_QUALIFICATION_MAX_AGE, profile_url=profile_url
+            )
         except ShortlistInputError as exc:
             return None, exc.code
         if key != "pvf_employer":

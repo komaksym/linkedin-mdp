@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 96,
+  "scenario_count": 97,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -29,7 +29,8 @@
     "private Markdown omitted creation-time provenance",
     "UTC conversion overflow aborted timestamp enrichment",
     "private Markdown omitted the creation-time prospect ID",
-    "escaped surrogate snapshot metadata blocked complete matching raw and exported rows"
+    "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
+    "candidate qualification citation attested a different profile"
   ],
-  "artifact_digest": "b884e473dd61f76a572bd4adb7022c30e0abb9de044a9e7fcd6a3b70aa0335cc"
+  "artifact_digest": "2c976cad44b739cc1f27e0a616a51099bbd0dbd5725d64b2bb2c71a1792650d2"
 }

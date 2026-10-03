@@ -1,0 +1,1 @@
+Technical/system infographic for maintainers. Structural-breakdown, technical-schematic, landscape16:9, English, nativeimagegen. Saved preferences leave these fields unset and backendauto. Learning objective: distinguish pagination cursor from immutable collection window. No member data, credentials or deployment claims.

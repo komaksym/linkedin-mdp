@@ -1,0 +1,8 @@
+Create a professional raster system infographic, landscape 16:9, structural-breakdown layout and technical-schematic style, English. Opaque neutral warm-light-gray canvas with thin charcoal outer boundary, restrained blue and amber accents, high contrast readable sans serif labels and generous whitespace. Explain an API collector scope lock, with three component compartments around a central collected-pages capsule, no DAG or Mermaid-style graph.
+Exact title: "Original scope, every page".
+Left compartment titled "REQUEST" contains two small rows: "startTime omitted" and "startTime supplied".
+Center compartment titled "PAGINATION" contains a movable cursor slider labelled "Cursor may advance" and a locked time-window capsule labelled "Time window stays fixed".
+Right compartment titled "SCOPE GUARD" contains two clear rules: "Omitted stays omitted" and "Supplied value stays unchanged".
+Below, an amber TERMINAL STOP callout labelled "Added or changed startTime: stop before encryption". There must be NO arrows leaving that stop callout. Omit the encrypted archive icon entirely. This is a scope-validation schematic, not a downstream execution flow.
+Footer exact text: "No database writes. No outreach.".
+Do not include test counts, dates, people, secrets, API tokens, live-success claims or infrastructure-deployment claims. All text inside canvas. Keep diagram compact with very few labels, no tiny copy.

@@ -1,5 +1,11 @@
 # Implementation plans
 
+## PR14 changelog pagination scope repair
+
+Summary: reject a changelog next link that adds `startTime` when the caller did not set one, before a second HTTP request or encryption. Keep valid pagination cursors and an unchanged caller-supplied `startTime`.
+
+Milestones: (1) extend the existing synthetic HTTP/CMS E2E and observe the missing rejection, (2) add the narrow client scope check, (3) verify the E2E and repository lint, types, tests, and build. The E2E failed before the fix with `unexpected synthetic collection failure`; after the fix, all 45 synthetic verdicts pass, including the seeded unchanged-start-time path. Full mypy (8 source files), 21 pytest tests, and sdist/wheel build pass. Parent reran the 45-verdict HTTP/CMS E2E, default scoped Ruff without exclusions, and diff check successfully. Independent correctness and comment review found no issues. The system infographic shows cursor progress with an immutable original time window.
+
 ## Private source changelog acquisition
 
 Summary: include the existing read-only LinkedIn member changelog response in the encrypted private source bundle, with actual collector observation timestamps and an explicitly unknown provider freshness. Preserve each raw provider event exactly and accept a null watermark only for a complete empty response.

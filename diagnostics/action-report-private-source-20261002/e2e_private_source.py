@@ -36,6 +36,7 @@ EXPECTED_FAILURES: dict[str, tuple[type[Exception], str]] = {
     "change_bad_envelope": (LinkedInAPIError, "LinkedIn API error 0: malformed changelog elements list"),
     "change_wrong_endpoint": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed endpoint"),
     "change_wrong_q": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed request scope"),
+    "change_added_start_time": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed request scope"),
     "change_bad_next": (LinkedInAPIError, "LinkedIn API error 0: malformed changelog paging link"),
     **{case: (RuntimeError, "private source collection failed") for case in ("db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate", "change_bad_event", "change_no_watermark", "change_zero_watermark", "change_negative_watermark", "change_boolean_watermark", "change_truncated", "auth_missing", "auth_multiple", "auth_malformed", "auth_wrong_prefix", "auth_suffix_whitespace", "auth_suffix_internal_space", "auth_suffix_bad_chars")},
 }
@@ -65,6 +66,10 @@ async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, l
                 elements = [{"memberComplianceAuthorizationKey": {"member": "urn:li:person:synthetic/member"}}]
             return httpx.Response(200, json={"elements": elements})
         if request.url.path == "/rest/memberChangeLogs":
+            if case == "change_added_start_time":
+                if request.url.params.get("start") == "1":
+                    raise RuntimeError("second changelog request reached")
+                return httpx.Response(200, json={"elements": [{"processedAt": 1710000000}], "paging": {"links": [{"rel": "next", "href": "/rest/memberChangeLogs?start=1&startTime=1710000000"}]}})
             if case == "change_bad_envelope":
                 return httpx.Response(200, json={"paging": {"links": []}})
             if case == "change_wrong_endpoint":
@@ -180,6 +185,16 @@ async def main(evidence: Path | None = None) -> None:
         paged_result = await asyncio.to_thread(subprocess.run, ["openssl", "cms", "-decrypt", "-binary", "-inform", "DER", "-in", str(tmp / "paged.cms"), "-inkey", str(key), "-recip", str(cert)], capture_output=True, check=False)
         paged_changelog = json.loads(paged_result.stdout).get("changelog", {}) if paged_result.returncode == 0 else {}
         verdicts["changelog_valid_pagination_preserves_scope_and_events"] = paged is not None and paged_changelog.get("events") == [{"processedAt": 1710000000, "changeType": "FIRST"}, {"processedAt": 1710000001, "changeType": "SECOND"}] and paged_changelog.get("page_count") == 2 and paged_changelog.get("next_start_time") == 1710000001
+        seeded_requests: list[httpx.Request] = []
+        def seeded_provider(request: httpx.Request) -> httpx.Response:
+            """Return two pages with the caller's unchanged start time."""
+            seeded_requests.append(request)
+            if request.url.params.get("start") == "1":
+                return httpx.Response(200, json={"elements": [{"processedAt": 1002}], "paging": {"links": []}})
+            return httpx.Response(200, json={"elements": [{"processedAt": 1001}], "paging": {"links": [{"rel": "next", "href": "/rest/memberChangeLogs?start=1&startTime=1000"}]}})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(seeded_provider)) as http:
+            seeded = await LinkedInMDPClient("synthetic", http=http).changelog(start_time=1000)
+        verdicts["changelog_original_start_time_survives_pagination"] = seeded["page_count"] == 2 and seeded["next_start_time"] == 1002 and len(seeded_requests) == 2 and all(request.url.params.get("startTime") == "1000" for request in seeded_requests)
         verdicts["prospect_created_at_exact_across_pages"] = [row.get("created_at") for row in prospects] == ["2025-01-02T03:04:05.123456+00:00", "2025-06-07T08:09:10Z"]
         missing, _ = await exercise("missing_created_at", cert, tmp / "missing.cms")
         missing_result = await asyncio.to_thread(subprocess.run, ["openssl", "cms", "-decrypt", "-binary", "-inform", "DER", "-in", str(tmp / "missing.cms"), "-inkey", str(key), "-recip", str(cert)], capture_output=True, check=False)

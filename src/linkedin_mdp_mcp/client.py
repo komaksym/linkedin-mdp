@@ -215,6 +215,8 @@ class LinkedInMDPClient:
                 if parsed.path != path:
                     raise LinkedInAPIError(0, f"{page_context} next link changed endpoint")
                 next_params = parse_qs(parsed.query, keep_blank_values=True)
+                if strict_envelope and "startTime" not in params and "startTime" in next_params:
+                    raise LinkedInAPIError(0, "changelog next link changed request scope")
                 for key, value in params.items():
                     expected = [str(value)]
                     if key in next_params and next_params[key] != expected:

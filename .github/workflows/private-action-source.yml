@@ -1,4 +1,4 @@
-name: One-time Encrypted Action Report Source
+name: One-time Encrypted Action Report Source Refresh
 on:
   push:
     branches: [validation/private-action-source-20261002]
@@ -21,7 +21,7 @@ jobs:
           path: proposal
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: 817fe2da7d433e6b00ac4bf98851bd4b0eef31f4
+          ref: 4d94031cc5ffd4835c86cce1e4f3e48d591e58f4
           persist-credentials: false
           path: runtime
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
@@ -41,7 +41,7 @@ jobs:
           PYTHONPATH: runtime/src
         run: >-
           runtime/.venv/bin/python
-          proposal/diagnostics/action-report-private-source-20261002/collect_private_source.py
+          runtime/diagnostics/action-report-private-source-20261002/collect_private_source.py
           --certificate proposal/diagnostics/action-report-private-source-20261002/recipient-cert.pem
           --output encrypted-source/source.cms
       - name: Retain encrypted source only

@@ -225,6 +225,11 @@ def run_matrix() -> dict[str, str]:
     nonempty_missing_watermark["next_start_time"] = None
     check("nonempty_changelog_without_watermark_withheld", not report([outbound], [], log=nonempty_missing_watermark)["follow_up"])
     check("first_dm_connection_date_provenance", first["first_dm"][0]["connected_on"] == "2026-09-30" and first["first_dm"][0]["connection_source"] == "connections.rows[0].Connected On" and first["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    provider_dated = report([], [], connection_rows=[{"URL": PEER, "Connected On": "30 Sep 2026"}])
+    check("provider_english_connection_day_is_supported", len(provider_dated["first_dm"]) == 1)
+    check("provider_english_connection_day_keeps_precision", provider_dated["first_dm"][0]["connected_on"] == "2026-09-30" and provider_dated["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    for day in ("31 Sep 2026", "30 Sept 2026", "30 sep 2026", "30 Sep 26", "30 Sep 2026 UTC"):
+        check("invalid_provider_day_" + day, not report([], [], connection_rows=[{"URL": PEER, "Connected On": day}])["first_dm"])
     old_connection = [{"URL": PEER, "Connected On": (NOW - timedelta(days=31)).date().isoformat()}]
     check("old_provider_connection_blocks_first_dm", not report([], [], connection_rows=old_connection)["first_dm"])
     check("old_connection_preserves_manual_followup", len(report([outbound], [activity(outbound)], connection_rows=old_connection)["follow_up"]) == 1)
@@ -304,7 +309,7 @@ def cli_scenario() -> None:
     """Prove the private CLI emits fixed logs and fresh private report files."""
     with tempfile.TemporaryDirectory() as tmp:
         base = Path(tmp)
-        source: dict[str, Any] = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
+        source: dict[str, Any] = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "30 Sep 2026"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "30 Sep 2026"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
         source["changelog"] = changelog([])
         inputs = {"source": source, "policy": policy(), "research": research()}
         for name, data in inputs.items():

@@ -1,0 +1,1 @@
+Technical system infographic. Structural-breakdown + technical-schematic, landscape16:9 English nativeimagegen default. Goal: distinguish pure report combination from safe Google publication and owner outreach. Opaque neutral canvas, high contrast, no person data or deployed claim.

@@ -1,5 +1,17 @@
 # Implementation plans
 
+## Combined private action report
+
+Summary: combine the existing invitation shortlist JSON and private DM action JSON into one owner-reviewable report. The combined renderer is pure; a separate command can publish its prepared text into the existing owner-only Google Doc region.
+
+- [x] Pin the actual upstream shapes and write failing synthetic CLI and Google HTTP end-to-end cases.
+- [x] Implement a validating combined renderer, private offline CLI, and constrained Google text publication entry point.
+- [x] Add a separate Google-only publication CLI, document usage and uncertainty, then pass scoped and full validation.
+
+Throughput checkpoint: the isolated branch has one exclusive writer. Offline composition and Google publication share only the prepared text contract. No live provider, database, sending, schema, workflow, or deployment work is in this slice. Parent owns infographic, review, and PR publication.
+
+Verification: 38 synthetic CLI/Google HTTP E2E verdicts pass with a resettable fixed-verdict evidence artifact. The full repository suite passes 24 checks in an isolated MCP 2 runtime. Scoped Ruff, mypy across 13 source files, `git diff --check`, and sdist/wheel build pass. Only synthetic data was used; live OAuth delivery and fresh source acquisition are outside this slice. The parent owns integration with the later DM attachment-only producer fix.
+
 ## Private DM evidence and action report
 
 Summary: classify positive sent and received DM evidence once for reuse by the later actual-action sync, then build a read-only private report of manual reply and follow-up reminders and qualified researched first-DM drafts. Invitation notes, ambiguous history, and incomplete coverage remain explicit unknowns.
@@ -238,3 +250,7 @@ Summary: a uniquely matched provider CONNECTIONS calendar date establishes recen
 Red proof: provider_day_without_invented_acceptance_time fails before production changes.
 
 Validation:88synthetic DM scenarios including the real CLI without an acceptance instant,23full tests,scoped Ruff,strict three-file mypy,and source/wheel builds pass. Invalid supplied timestamps and mismatches remain withheld; missing timestamps use only the verified provider calendar day. Independent review agent hit its account limit before returning; no independent review is claimed. Root scoped review found no new comments/suppressions or unrelated code changes. Restore inherited inbox artifact after pytest before publication.
+
+Parent combined-report integration: rebased unpublished branch onto PR13 attachment-only correction82456ae. Actual producer fixtures, offlineCLI and simulatedGoogle HTTP38scenario proof passed;24fulltests,13filemypy,scopedRuff,source/wheel builds anddiffcheck passed. Inspectedraster included. Direct harness requires declareddevdependencies andPYTHONPATH=.:src; documented command. No liveOAuth/Docdelivery or source freshness claim.
+
+PR15 follow-up reproduces failed first/second private writes, preserves foreign exclusive-create collision files, and rejects invalid or omitted research profile URLs while allowing explicit null.44synthetic scenarios and required checks recorded below after parent verification. No live publication.

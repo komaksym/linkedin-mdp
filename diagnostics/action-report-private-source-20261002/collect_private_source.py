@@ -62,9 +62,20 @@ async def read_table(store: SupabaseClient, table: str, *, page_size: int, max_p
     raise RuntimeError("private source collection failed")
 
 
-async def collect_sources(linkedin: LinkedInMDPClient, store: SupabaseClient, *, page_size: int = 500, max_db_pages: int = 200, snapshot_pages: int = 50) -> dict[str, Any]:
-    """Collect all three strict snapshots and both existing tables with no writes."""
-    require(1 <= page_size <= 1000 and 1 <= max_db_pages <= 200 and 1 <= snapshot_pages <= 50)
+async def collect_sources(linkedin: LinkedInMDPClient, store: SupabaseClient, *, page_size: int = 500, max_db_pages: int = 200, snapshot_pages: int = 50, changelog_pages: int = 50) -> dict[str, Any]:
+    """Collect strict snapshots, changelog, and existing tables with no writes."""
+    require(1 <= page_size <= 1000 and 1 <= max_db_pages <= 200 and 1 <= snapshot_pages <= 50 and 1 <= changelog_pages <= 50)
+    authorizations = await linkedin.authorization_status()
+    elements = authorizations.get("elements") if isinstance(authorizations, dict) else None
+    if not isinstance(elements, list) or len(elements) != 1:
+        raise RuntimeError("private source collection failed")
+    authorization = elements[0]
+    identity = authorization.get("memberComplianceAuthorizationKey") if isinstance(authorization, dict) else None
+    account_member_urn = identity.get("member") if isinstance(identity, dict) else None
+    require(
+        isinstance(account_member_urn, str)
+        and re.fullmatch(r"urn:li:person:[A-Za-z0-9_-]+", account_member_urn) is not None
+    )
     snapshots: dict[str, Any] = {}
     for domain in DOMAINS:
         started = datetime.now(UTC).isoformat()
@@ -77,10 +88,34 @@ async def collect_sources(linkedin: LinkedInMDPClient, store: SupabaseClient, *,
         rows = snapshot.get("rows")
         require(isinstance(rows, list) and all(isinstance(row, dict) for row in rows))
         snapshots[domain] = {"attempted_at": started, "completed_at": datetime.now(UTC).isoformat(), "source_result": "success", "provider_generated_at": None, "upstream_freshness": "unknown unless established by retained provider metadata", **snapshot}
+    attempted_at = datetime.now(UTC).isoformat()
+    change_result = await linkedin.changelog(count=50, max_pages=changelog_pages)
+    completed_at = datetime.now(UTC).isoformat()
+    require(isinstance(change_result, dict))
+    change_events = change_result.get("events")
+    watermark = change_result.get("next_start_time")
+    pages = change_result.get("page_count")
+    require(isinstance(change_result.get("api_version"), str) and bool(change_result["api_version"]))
+    require(isinstance(change_events, list) and all(isinstance(event, dict) for event in change_events))
+    require(type(pages) is int and 0 < pages <= changelog_pages and change_result.get("truncated") is False)
+    require((not change_events and watermark is None) or (bool(change_events) and type(watermark) is int and watermark > 0))
+    changelog = {
+        "attempted_at": attempted_at,
+        "completed_at": completed_at,
+        "collected_at": datetime.now(UTC).isoformat(),
+        "source_result": "success",
+        "provider_generated_at": None,
+        "upstream_freshness": "unknown",
+        "api_version": change_result["api_version"],
+        "events": change_events,
+        "next_start_time": watermark,
+        "page_count": pages,
+        "truncated": False,
+    }
     tables = {}
     for table in TABLE_COLUMNS:
         tables[table] = await read_table(store, table, page_size=page_size, max_pages=max_db_pages)
-    return {"schema_version": 1, "base_revision": BASE_REVISION, "collected_at": datetime.now(UTC).isoformat(), "snapshots": snapshots, **tables}
+    return {"schema_version": 1, "base_revision": BASE_REVISION, "collected_at": datetime.now(UTC).isoformat(), "account_member_urn": account_member_urn, "snapshots": snapshots, "changelog": changelog, **tables}
 
 
 def encrypt_bundle(bundle: dict[str, Any], certificate: Path, output: Path) -> None:

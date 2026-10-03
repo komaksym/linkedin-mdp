@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 
 from e2e_private_dm_actions import activity, inbox_row, report
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def anonymous_row(*, hours: int) -> dict[str, object]:
+def anonymous_row(*, hours: int) -> dict[str, Any]:
     """Build a timestamped INBOX row whose participant identity is unavailable."""
     row = deepcopy(inbox_row(hours=hours, content="Synthetic anonymous evidence"))
     row["CONVERSATION ID"] = f"anonymous-thread-{hours}"

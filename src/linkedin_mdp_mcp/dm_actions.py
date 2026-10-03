@@ -367,11 +367,17 @@ def _date_added(row: Mapping[str, Any], now: datetime) -> str | None:
 
 
 def _connection_day(value: Any) -> date | None:
-    """Read the provider's calendar day without inventing a connection instant."""
-    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+    """Read ISO or provider English calendar dates without inventing a time or zone."""
+    if not isinstance(value, str):
         return None
     try:
-        return date.fromisoformat(value)
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            return date.fromisoformat(value)
+        match = re.fullmatch(r"(\d{1,2}) ([A-Z][a-z]{2}) (\d{4})", value)
+        months = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        if match is None or match[2] not in months:
+            return None
+        return date(int(match[3]), months.index(match[2]) + 1, int(match[1]))
     except ValueError:
         return None
 
@@ -399,7 +405,7 @@ def _saved_draft(research: Mapping[str, Any], profile: str) -> tuple[str, list[d
 
 
 def _qualified(policy: Mapping[str, Any], profile: str, connected_on: date, now: datetime) -> tuple[bool, str]:
-    """Check cited US PVF fit and an attestation matching the provider connection day."""
+    """Check cited US PVF fit and any supplied acceptance attestation."""
     profiles = policy.get("profiles")
     if not isinstance(profiles, Mapping):
         return False, "qualification_missing"
@@ -409,9 +415,10 @@ def _qualified(policy: Mapping[str, Any], profile: str, connected_on: date, now:
     row = matches[0]
     if row.get("opt_out") is True:
         return False, "opt_out"
-    accepted = _aware_time(row.get("accepted_at"))
-    if accepted is None or accepted > now or accepted.date() != connected_on:
-        return False, "acceptance_date_conflicts_with_provider"
+    if "accepted_at" in row:
+        accepted = _aware_time(row["accepted_at"])
+        if accepted is None or accepted > now or accepted.date() != connected_on:
+            return False, "acceptance_date_conflicts_with_provider"
     if not 0 <= (now.date() - connected_on).days <= 30:
         return False, "recent_acceptance_unverified"
     citations = row.get("qualification_citations")
@@ -434,6 +441,7 @@ def plan_dm_actions(
         raise ValueError("clock_timezone_invalid")
     now = now.astimezone(UTC)
     reasons = list(evidence.coverage_reasons)
+    connection_reasons: list[str] = []
     try:
         prospect_rows = _validate_database_snapshot(prospects, "prospects")
     except (ShortlistInputError, TypeError):
@@ -446,10 +454,10 @@ def plan_dm_actions(
         connection_rows = _validate_provider_snapshot(connections, "CONNECTIONS")
     except (ShortlistInputError, TypeError):
         connection_rows = []
-        reasons.append("connections_incomplete")
+        connection_reasons.append("connections_incomplete")
     connections_acquired = _aware_time(connections.get("completed_at")) if isinstance(connections, Mapping) else None
     if connections_acquired is None or connections_acquired > now or now - connections_acquired > timedelta(days=1):
-        reasons.append("connections_stale_or_missing_acquisition")
+        connection_reasons.append("connections_stale_or_missing_acquisition")
     connections_by_profile: dict[str, list[tuple[int, Mapping[str, Any]]]] = defaultdict(list)
     for index, connection in enumerate(connection_rows):
         profile = normalize_profile_url(connection.get("URL"))
@@ -460,8 +468,7 @@ def plan_dm_actions(
         profile = normalize_profile_url(row.get("linkedin_url"))
         if profile:
             profiles[profile].append(row)
-    report: dict[str, Any] = {"reply": [], "follow_up": [], "first_dm": [], "withheld": [], "coverage": {"reasons": sorted(set(reasons)), "upstream_freshness": evidence.upstream_freshness, "changelog_scope": evidence.changelog_scope}}
-    global_unknown = any(item.profile_url is None for item in evidence.uncertain)
+    report: dict[str, Any] = {"reply": [], "follow_up": [], "first_dm": [], "withheld": [], "coverage": {"reasons": sorted(set(reasons + connection_reasons)), "upstream_freshness": evidence.upstream_freshness, "changelog_scope": evidence.changelog_scope}}
     for profile in sorted(profiles):
         rows = profiles[profile]
         if len(rows) != 1:
@@ -483,7 +490,7 @@ def plan_dm_actions(
         messages = [item for item in evidence.verified if item.profile_url == profile]
         unknown = [item for item in evidence.uncertain if item.profile_url in (profile, None)]
         common = {"profile_url": profile, "prospect_id": row["id"], "date_added": _date_added(row, now), "date_added_source": f"prospects.rows[{prospect_rows.index(row)}].created_at"}
-        if reasons or global_unknown:
+        if reasons:
             report["withheld"].append({**common, "reason": "source_coverage_incomplete"})
             continue
         inbound = [item for item in messages if item.direction == "inbound"]
@@ -502,6 +509,9 @@ def plan_dm_actions(
                 continue
         if messages or unknown:
             report["withheld"].append({**common, "reason": "message_history_ambiguous_or_action_not_due"})
+            continue
+        if connection_reasons:
+            report["withheld"].append({**common, "reason": "source_coverage_incomplete"})
             continue
         connection_matches = connections_by_profile.get(profile, [])
         if not connection_matches:

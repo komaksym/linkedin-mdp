@@ -296,7 +296,8 @@ def cli_scenario() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         base = Path(tmp)
         source = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
-        inputs = {"source": source, "changelog": changelog([]), "policy": policy(), "research": research()}
+        source["changelog"] = changelog([])
+        inputs = {"source": source, "policy": policy(), "research": research()}
         for name, data in inputs.items():
             path = base / f"{name}.json"
             path.write_text(json.dumps(data), encoding="utf-8")
@@ -316,6 +317,25 @@ def cli_scenario() -> None:
         assert len(first) == 1 and first[0]["connected_on"] == "2026-09-30"
         assert "Connected on: 2026-09-30 (calendar day)" in markdown
         assert "Connection source: connections.rows[0].Connected On" in markdown
+        # A separate changelog acquisition must not override the bundled source.
+        override = base / "override.json"
+        override.write_text(json.dumps(changelog([activity(inbox_row(hours=90, content="Synthetic override"))])), encoding="utf-8")
+        override.chmod(0o600)
+        override_cmd = cmd.copy()
+        override_cmd.extend(["--changelog", str(override)])
+        override_cmd[override_cmd.index("--output-dir") + 1] = str(base / "override-report")
+        failed = subprocess.run(override_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
+        assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
+        assert not (base / "override-report").exists()
+        for nested in (None, {"events": []}):
+            source["changelog"] = nested
+            (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
+            invalid_cmd = cmd.copy()
+            invalid_cmd[invalid_cmd.index("--output-dir") + 1] = str(base / f"bad-changelog-{nested is None}")
+            failed = subprocess.run(invalid_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
+            assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
+            assert not Path(invalid_cmd[invalid_cmd.index("--output-dir") + 1]).exists()
+        source["changelog"] = changelog([])
         for invalid_urn in (None, "urn:li:organization:123", "urn:li:person:"):
             source.pop("account_member_urn", None) if invalid_urn is None else source.__setitem__("account_member_urn", invalid_urn)
             (base / "source.json").write_text(json.dumps(source), encoding="utf-8")

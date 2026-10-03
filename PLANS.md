@@ -236,3 +236,13 @@ DM parent integration: rebased the unpublished branch onto PR12 correction56324a
 PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppression and false opt-out reason before production edits. Attribute group uncertainty only to complete identifiable thread participants; malformed participant evidence remains global. Unknown policy opt-out state remains withheld under an explicit unverified-policy reason. Expanded61synthetic E2E,23fulltests,scopedRuff,10sourcefilemypy,sdist/wheel passed.
 
 PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.
+
+## DM connection coverage correction
+
+Summary: keep CONNECTIONS completeness and freshness gates limited to first-DM eligibility. Replies and follow-ups depend on verified message evidence, prospect coverage and opt-out state.
+
+1. Reproduce stale/incomplete CONNECTIONS suppression in the real report planner.
+2. Separate connection coverage from shared message/prospect gates.
+3. Run E2E, lint, typecheck, full tests and builds before publishing the correction to PR13.
+
+The stale and incomplete coverage regressions failed before the planner change. The corrected planner passes 72 synthetic DM scenarios plus 6 dedicated anonymous-timing scenarios and 23 full tests. Scoped Ruff and strict changed-file mypy pass; source/wheel builds pass. Full-source mypy still reports the unchanged inherited invitation_shortlist.py:276 Optional-key error; this correction does not alter that unrelated module. Historical identity bridging is excluded because it lacks a production source contract and rejects conflicting historical shapes incorrectly. No report eligibility or live publication is claimed.

@@ -1,5 +1,17 @@
 # Implementation plans
 
+## Independent actual-action sync
+
+Summary: stage complete fresh INVITATIONS, CONNECTIONS, INBOX, and consent changelog evidence before one prospect lookup or event write. Reuse reviewed invitation planning, existing connection planning, and the shared positive DM classifier. Run dry by default; one combined duplicate-safe event batch is opt-in.
+
+- [x] Pin dependency hashes and raw source contracts; write and run a failing HTTP/event-store E2E matrix before production changes.
+- [x] Copy the focused reviewed PR7 invitation planner and PR14 client verbatim, implement staged acquisition, pure verified-DM event adapter, combined planner, and dry-first CLI.
+- [x] Document bounded evidence and projection/scheduling limits without applying changes; run scoped and full validation and save sanitized repeatable E2E verdicts.
+
+Throughput checkpoint: blocking source-shape and red-E2E work happens first. Independent workstreams are not safe inside the single writer checkout. All code and artifact writes are serialized by the exclusive owner. The smallest complete slice is one acquisition boundary, one combined plan, and one optional event insert. No provider or database live calls, schema change, active workflow, outreach send, commit, push, or PR is in this writer slice.
+
+Verification: red-first E2E caught missing implementation, post-commit diagnostic ambiguity, and surrogate digest refusal. The final matrix records 54 passing synthetic HTTP/store/CLI verdicts; 24 repository tests, scoped Ruff, full-source mypy (13 files), sdist and wheel build, and `git diff --check` pass. The public artifact is aggregate-only. The CLI is manual-only; no active cron is proposed before the SQL projection and PR7/PR14 dependencies are reviewed together. No live source or database readback was performed, so no deployed outreach-state claim is made.
+
 ## Private DM evidence and action report
 
 Summary: classify positive sent and received DM evidence once for reuse by the later actual-action sync, then build a read-only private report of manual reply and follow-up reminders and qualified researched first-DM drafts. Invitation notes, ambiguous history, and incomplete coverage remain explicit unknowns.
@@ -214,6 +226,14 @@ DM parent integration: rebased the unpublished branch onto PR12 correction56324a
 PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppression and false opt-out reason before production edits. Attribute group uncertainty only to complete identifiable thread participants; malformed participant evidence remains global. Unknown policy opt-out state remains withheld under an explicit unverified-policy reason. Expanded61synthetic E2E,23fulltests,scopedRuff,10sourcefilemypy,sdist/wheel passed.
 
 PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.
+
+Parent inspected staged acquisition, durable matched DM evidence, stable escaped-JSON hashing and post-commit CLI outcome handling. Technical raster infographic inspected and copied. Final parent verification follows integration with PR13 current wrapper commit; no live collection/persistence/schedule claim.
+
+Parent final verification after rebasing unpublished branch onto PR13head36a785d passed54synthetic HTTP/event-store E2E,24fullpytest,scopedRuff,13-filemypy,source/wheelbuilds and dependency byte equality. Unrelated generated inbox artifact restored to HEAD. No live API/DB call, workflow activation or outreach send.
+
+PR16 review repairs reproduced tracked artifact rewrite and impossible future connection timestamp before code. Pytest now uses a temporary evidence path; the explicit E2E runner retains committed proof. A future provider connection day blocks all store access before planning. The documented account URL is canonical. The PR10 Unicode source hash repair is included after its lowest owning PR publication. Final checks pass: 56 synthetic E2E scenarios, 24 repository tests twice, scoped Ruff, mypy over 12 source files, source and wheel builds, and diff check. Repeated full-suite runs leave the actual-action evidence artifact unchanged; the unrelated inbox artifact was restored to HEAD.
+
+Parent verified56syntheticE2E,24fulltests,scopedRuff,13-filemypy andsourcewheelbuilds afterfutureproviderday gate beforeDB,canonicaldocexample,temporarypytestartifact,andpublishedPR10c08295fASCIIhashdependency. Sharedconnection_sync.pyunchanged. No livecalls/deployment.
 
 ## DM connection coverage correction
 

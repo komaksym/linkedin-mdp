@@ -1,5 +1,7 @@
 # linkedin-mdp-mcp
 
+Independent actual-action sync: [operator and evidence contract](docs/actual-action-sync.md).
+
 Minimal read-only MCP bridge for LinkedIn's official **Member Data Portability API**.
 
 It intentionally exposes only five tools:

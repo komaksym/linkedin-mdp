@@ -471,7 +471,7 @@ def _date_added(
 
 def _stable_hash(value: Any) -> str:
     """Return a deterministic opaque identifier for a JSON value."""
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    encoded = json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 

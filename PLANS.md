@@ -252,3 +252,11 @@ CodeRabbit also identified pytest rewriting the tracked uncertainty artifact. Th
 ## Real provider connection-date correction
 
 Summary: the collected CONNECTIONS rows use English calendar dates such as 16 Sep 2026. The ISO-only first-DM parser rejects those valid provider dates. All15retained researched profiles have a unique connection row within30calendar days when the observed format is parsed. Add the observed English format without inventing timezone or acceptance instants, reject malformed dates, and validate before publication.
+
+## Calendar-day first-DM eligibility correction
+
+Summary: a uniquely matched provider CONNECTIONS calendar date establishes recent connection status without an invented acceptance instant. First reproduce the timestamp-only policy failure through the report entry point. Then keep any supplied acceptance timestamp as an optional consistency check, preserve all identity, message-history, qualification and opt-out gates, document the input contract, and validate the E2E artifact plus required checks.
+
+Red proof: provider_day_without_invented_acceptance_time fails before production changes.
+
+Validation:88synthetic DM scenarios including the real CLI without an acceptance instant,23full tests,scoped Ruff,strict three-file mypy,and source/wheel builds pass. Invalid supplied timestamps and mismatches remain withheld; missing timestamps use only the verified provider calendar day. Independent review agent hit its account limit before returning; no independent review is claimed. Root scoped review found no new comments/suppressions or unrelated code changes. Restore inherited inbox artifact after pytest before publication.

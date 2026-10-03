@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import stat
@@ -616,7 +617,10 @@ def test_cli_writes_private_outputs_and_sanitized_stdout() -> None:
         source_path = temp_path / "source.json"
         qualification_path = temp_path / "qualification.json"
         output_path = temp_path / "out"
-        source_path.write_text(json.dumps(source_export()), encoding="utf-8")
+        source = source_export()
+        created_at = "2026-09-30T14:12:13.123456+02:00"
+        source["prospects"]["rows"][0]["created_at"] = created_at
+        source_path.write_text(json.dumps(source), encoding="utf-8")
         qualification_path.write_text(json.dumps(qualification()), encoding="utf-8")
         os.chmod(source_path, 0o600)
         os.chmod(qualification_path, 0o600)
@@ -642,8 +646,88 @@ def test_cli_writes_private_outputs_and_sanitized_stdout() -> None:
         assert stat.S_IMODE(markdown_path.stat().st_mode) == 0o600
         report = json.loads(report_path.read_text(encoding="utf-8"))
         assert report["invitations"][0]["profile_url"] == PROFILE_A
-        assert "Synthetic Person" in markdown_path.read_text(encoding="utf-8")
+        row = report["invitations"][0]
+        assert row["date_added"] == created_at
+        assert row["date_added_source"] == {
+            "prospect_id": "tracked-a",
+            "source_ref": "prospects.rows[0].created_at",
+            "reason": None,
+        }
+        markdown = markdown_path.read_text(encoding="utf-8")
+        assert "Synthetic Person" in markdown
+        assert f"Date added: {created_at}" in markdown
+        assert "source: prospects.rows[0].created_at; prospect: tracked-a; reason: none" in markdown
         assert not any(name in process.stdout for name in ("Synthetic Person", PROFILE_A))
+        digest_input = dict(report)
+        digest = digest_input.pop("output_digest")
+        assert digest == hashlib.sha256(
+            json.dumps(digest_input, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
+
+def test_date_added_uses_exact_canonical_source_match_and_never_changes_ranking() -> None:
+    """An exact URL alias may enrich output, but its source time cannot affect selection."""
+    source = source_export()
+    source["prospects"]["rows"][0]["linkedin_url"] = "https://linkedin.com/in/person-a/"
+    created_at = "2026-09-30T14:12:13.123456+02:00"
+    source["prospects"]["rows"][0]["created_at"] = created_at
+    qualification_data = qualification()
+    qualification_data["candidates"][0]["date_added"] = "2099-01-01T00:00:00Z"
+
+    result = run(source, qualification_data)
+    without_source_time = source_export()
+    without_source_time["prospects"]["rows"][0]["linkedin_url"] = "https://linkedin.com/in/person-a/"
+    baseline = run(without_source_time, qualification())
+
+    assert [item["profile_url"] for item in result["invitations"]] == [
+        item["profile_url"] for item in baseline["invitations"]
+    ]
+    assert result["invitations"][0]["score"] == baseline["invitations"][0]["score"]
+    assert result["invitations"][0]["date_added"] == created_at
+    assert result["invitations"][0]["date_added_source"]["prospect_id"] == "tracked-a"
+
+
+@pytest.mark.parametrize(
+    ("created_at", "reason"),
+    [
+        (None, "missing"),
+        (42, "invalid_timestamp"),
+        ("0001-01-01T00:00:00+01:00", "invalid_timestamp"),
+        ("9999-12-31T23:59:59-01:00", "invalid_timestamp"),
+        ("not-a-timestamp", "invalid_timestamp"),
+        ("2026-09-30T14:12:13", "invalid_timestamp"),
+        ("2026-10-03T00:00:00Z", "future_timestamp"),
+    ],
+)
+def test_invalid_or_future_date_added_stays_unknown_with_safe_pointer(created_at: Any, reason: str) -> None:
+    """Invalid values stay unknown and never leak their raw timestamp into output."""
+    source = source_export()
+    source["prospects"]["rows"][0]["created_at"] = created_at
+
+    result = run(source, qualification())
+    row = result["invitations"][0]
+
+    assert row["date_added"] is None
+    assert row["date_added_source"] == {
+        "prospect_id": "tracked-a",
+        "source_ref": "prospects.rows[0].created_at",
+        "reason": reason,
+    }
+    assert str(created_at) not in json.dumps(row)
+
+
+def test_missing_date_added_stays_unknown_and_does_not_change_membership() -> None:
+    """A missing creation time is not inferred and cannot alter eligibility."""
+    source = source_export()
+    baseline = run(source, qualification())
+    expected_membership = [item["profile_url"] for item in baseline["invitations"]]
+
+    source["prospects"]["rows"][0].pop("created_at", None)
+    result = run(source, qualification())
+
+    assert [item["profile_url"] for item in result["invitations"]] == expected_membership
+    assert result["invitations"][0]["date_added"] is None
+    assert result["invitations"][0]["date_added_source"]["reason"] == "missing"
 
 
 def test_cli_refuses_to_overwrite_existing_outputs() -> None:

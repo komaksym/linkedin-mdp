@@ -1,4 +1,4 @@
-name: One-time Encrypted Action Report Source Refresh
+name: One-time Encrypted Action Report Source Recovery
 on:
   push:
     branches: [validation/private-action-source-20261002]

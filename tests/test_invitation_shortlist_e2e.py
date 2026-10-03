@@ -28,6 +28,28 @@ def test_invitation_shortlist_e2e() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     match = re.search(r"(\d+) passed", result.stdout)
     assert match is not None, result.stdout + result.stderr
+
+    collection = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "tests/e2e_invitation_shortlist.py"],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert collection.returncode == 0, collection.stdout + collection.stderr
+    required_present_employer_regressions = {
+        "test_present_set_charges_each_company_once_and_keeps_flat_audit",
+        "test_present_set_membership_does_not_invent_primary_employer",
+        "test_conflicting_canonical_present_sets_are_not_unioned",
+        "test_present_set_selection_requires_and_consumes_every_company_slot",
+        "test_legacy_employer_rows_reject_completeness_metadata",
+    }
+    missing_regressions = sorted(
+        test_name for test_name in required_present_employer_regressions if test_name not in collection.stdout
+    )
+    assert not missing_regressions, f"missing red-first regression coverage: {missing_regressions}"
+
     body = {
         "schema_version": 1,
         "scenario_count": int(match.group(1)),

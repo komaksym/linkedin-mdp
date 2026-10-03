@@ -1,10 +1,12 @@
 """Expose the synthetic private DM action matrix to pytest."""
 
+from e2e_dm_uncertainty_scope import main as uncertainty_scope_main
 from e2e_private_dm_actions import cli_scenario, failure_artifact_scenario, run_matrix
 
 
 def test_private_dm_actions_e2e() -> None:
-    """Repeat the synthetic classifier, planner, and CLI scenarios."""
+    """Repeat the synthetic classifier, planner, CLI, and uncertainty-scope scenarios."""
     assert run_matrix()
     cli_scenario()
     failure_artifact_scenario()
+    uncertainty_scope_main()

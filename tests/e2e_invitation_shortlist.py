@@ -978,3 +978,90 @@ def test_unpaired_unicode_employer_keys_are_queued_without_encoding_failure(code
     assert queued[0]["evidence_id"].startswith("current-employer-key-sha256:")
     assert result["status"] == "withheld_current_employer_assignments"
     json.dumps(result, ensure_ascii=False).encode("utf-8")
+
+
+def employer_set(*company_ids: str, coverage: str = "complete") -> dict[str, Any]:
+    """Create explicit cited concurrent-company claims without a primary employer."""
+    return {"assignments": [{"company_id": key, "citations": [citation("employer-" + key)]} for key in company_ids], "coverage": coverage, "unknown_reasons": [] if coverage == "complete" else ["unnamed_current_role"]}
+
+
+def test_present_set_charges_each_company_once_and_keeps_flat_audit() -> None:
+    """Replayed invitation facts charge one profile once to every present employer."""
+    data = qualification(current_employers={PROFILE_A: employer_set("co-a", "co-b"), PROFILE_B: employer_set("co-a", "co-b")})
+    data["current_employers"][PROFILE_B]["assignments"].append(deepcopy(data["current_employers"][PROFILE_B]["assignments"][0]))
+    result = run(source_export(invitations=[invitation(PROFILE_B), {**invitation(PROFILE_B), "Sent At": "9/01/26, 12:00 PM"}]), data)
+    assert result["status"] == "ready"
+    assert [row["profile_url"] for row in result["invitations"]] == [PROFILE_A]
+    assert {key: row["recorded"] for key, row in result["company_usage"].items()} == {"co-a": 1, "co-b": 1}
+    assert len(result["current_employer_assignments"]) == 4
+    assert all(len(row["citations"]) == 1 for row in result["current_employer_assignments"])
+    assert result["current_employer_sets"][0]["company_ids"] == ["co-a", "co-b"]
+
+
+def test_present_set_membership_does_not_invent_primary_employer() -> None:
+    """A qualified employer anywhere in the set is valid, and outside the set is withheld."""
+    result = run(source_export(), qualification(current_employers={PROFILE_A: employer_set("co-b", "co-a")}))
+    assert len(result["invitations"]) == 1
+    result = run(source_export(), qualification(current_employers={PROFILE_A: employer_set("co-b")}))
+    assert result["withheld_counts"]["current_employer_conflict"] == 1
+
+
+@pytest.mark.parametrize("value,reason", [
+    (employer_set(), "current_employer_assignment_invalid"),
+    (employer_set("unknown"), "current_employer_unregistered"),
+    (employer_set("co-a", coverage="partial"), "current_employer_coverage_incomplete"),
+    ({**employer_set("co-a"), "company_id": "co-b"}, "current_employer_assignment_invalid"),
+])
+def test_invalid_present_sets_keep_global_withholding(value: dict[str, Any], reason: str) -> None:
+    """Unbounded or contradictory claims cannot create company capacity."""
+    result = run(source_export(invitations=[invitation(PROFILE_B)]), qualification(current_employers={PROFILE_A: employer_set("co-a"), PROFILE_B: value}))
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert result["invitations"] == []
+    assert any(row["reason"] == reason for row in result["research_queue"])
+    assert all(row["recorded"] is None for row in result["company_usage"].values())
+
+
+def test_legacy_employer_rows_reject_completeness_metadata() -> None:
+    legacy = {
+        "company_id": "co-a",
+        "citations": [citation("employer-a")],
+        "coverage": "partial",
+        "unknown_reasons": ["unnamed_current_role"],
+    }
+    result = run(
+        source_export(invitations=[invitation(PROFILE_B)]),
+        qualification(current_employers={PROFILE_A: legacy, PROFILE_B: employer_set("co-b")}),
+    )
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert result["invitations"] == []
+    assert any(row["reason"] == "current_employer_assignment_invalid" for row in result["research_queue"])
+
+
+def test_conflicting_canonical_present_sets_are_not_unioned() -> None:
+    """Distinct normalized-key records claiming different complete sets remain unresolved."""
+    claims = {PROFILE_A: employer_set("co-a"), PROFILE_B: employer_set("co-a", "co-b"), "https://linkedin.com/in/person-b/": employer_set("co-a")}
+    result = run(source_export(invitations=[invitation(PROFILE_B)]), qualification(current_employers=claims))
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert any(row["reason"] == "conflicting_current_employer_assignments" for row in result["research_queue"])
+
+
+def test_identical_canonical_present_sets_merge_citations_only() -> None:
+    """Equivalent complete inputs collapse aliases, order and duplicate citation facts."""
+    claims = {PROFILE_A: employer_set("co-a"), PROFILE_B: employer_set("co-a", "co-b"), "https://linkedin.com/in/person-b/": employer_set("co-b", "co-a")}
+    result = run(source_export(invitations=[invitation(PROFILE_B)]), qualification(current_employers=claims))
+    assert result["status"] == "ready"
+    rows = [row for row in result["current_employer_assignments"] if row["profile_url"] == PROFILE_B]
+    assert len(rows) == 2 and all(len(row["citations"]) == 1 for row in rows)
+
+
+def test_present_set_selection_requires_and_consumes_every_company_slot() -> None:
+    """A second employer at capacity blocks the person, and selected people charge every job."""
+    profiles = [PROFILE_B, PROFILE_C, "https://www.linkedin.com/in/person-d"]
+    prospects = [prospect_row(PROFILE_A, "p-a"), *[prospect_row(url, f"p-{i}") for i, url in enumerate(profiles)]]
+    claims = {PROFILE_A: employer_set("co-a", "co-b"), **{url: employer_set("co-b") for url in profiles}}
+    result = run(source_export(prospects=prospects, invitations=[invitation(url) for url in profiles]), qualification(current_employers=claims))
+    assert result["company_usage"]["co-b"]["recorded"] == 3
+    assert result["invitations"] == []
+    result = run(source_export(), qualification(current_employers={PROFILE_A: employer_set("co-a", "co-b")}))
+    assert result["company_usage"]["co-a"]["remaining_slots_after_selection"] == 2
+    assert result["company_usage"]["co-b"]["remaining_slots_after_selection"] == 2

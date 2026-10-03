@@ -1,0 +1,1 @@
+Technical system PR infographic; explain profile-to-many-companies accounting and invitation capacity. Defaults structural-breakdown / technical-schematic / 16:9 / English / native imagegen. Saved backend auto. No private names, dates, test counts or deployed-state claims.

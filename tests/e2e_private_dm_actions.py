@@ -106,13 +106,13 @@ def research() -> dict[str, Any]:
     }]}
 
 
-def report(rows: list[dict[str, Any]], events: list[dict[str, Any]], *, policy_data: dict[str, Any] | None = None, research_data: dict[str, Any] | None = None, inbox: dict[str, Any] | None = None, log: dict[str, Any] | None = None, connection_rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def report(rows: list[dict[str, Any]], events: list[dict[str, Any]], *, policy_data: dict[str, Any] | None = None, research_data: dict[str, Any] | None = None, inbox: dict[str, Any] | None = None, log: dict[str, Any] | None = None, connection_rows: list[dict[str, Any]] | None = None, connection_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run the complete pure classification and planning boundary."""
     evidence = classify_dm_evidence(inbox or snapshot(rows), log or changelog(events), account_profile_url=ACCOUNT, account_member_urn=OWNER_URN, now=NOW)
     prospects = {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}
     connected = connection_rows if connection_rows is not None else [{"URL": PEER, "Connected On": (NOW - timedelta(days=2)).date().isoformat()}]
     connections = {"rows": deepcopy(connected), "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": deepcopy(connected)}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}
-    return plan_dm_actions(evidence, prospects, connections, research_data if research_data is not None else research(), policy=policy_data if policy_data is not None else policy(), now=NOW)
+    return plan_dm_actions(evidence, prospects, connection_snapshot if connection_snapshot is not None else connections, research_data if research_data is not None else research(), policy=policy_data if policy_data is not None else policy(), now=NOW)
 
 
 def run_matrix() -> dict[str, str]:
@@ -225,6 +225,22 @@ def run_matrix() -> dict[str, str]:
     nonempty_missing_watermark["next_start_time"] = None
     check("nonempty_changelog_without_watermark_withheld", not report([outbound], [], log=nonempty_missing_watermark)["follow_up"])
     check("first_dm_connection_date_provenance", first["first_dm"][0]["connected_on"] == "2026-09-30" and first["first_dm"][0]["connection_source"] == "connections.rows[0].Connected On" and first["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    calendar_policy = policy()
+    del calendar_policy["profiles"][PEER]["accepted_at"]
+    calendar_first = report([], [], policy_data=calendar_policy, connection_rows=[{"URL": PEER, "Connected On": "30 Sep 2026"}])
+    check("provider_day_without_invented_acceptance_time", len(calendar_first["first_dm"]) == 1)
+    check("provider_day_without_time_preserves_precision", calendar_first["first_dm"][0]["connected_on"] == "2026-09-30" and calendar_first["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    for day in ((NOW - timedelta(days=31)).date().isoformat(), (NOW + timedelta(days=1)).date().isoformat(), "yesterday"):
+        check("provider_day_recency_without_attestation_" + day, not report([], [], policy_data=calendar_policy, connection_rows=[{"URL": PEER, "Connected On": day}])["first_dm"])
+    for accepted in (None, "yesterday", "2026-09-30T12:00:00", (NOW + timedelta(days=1)).isoformat()):
+        invalid_acceptance = policy()
+        invalid_acceptance["profiles"][PEER]["accepted_at"] = accepted
+        check("supplied_acceptance_attestation_invalid_" + str(accepted), not report([], [], policy_data=invalid_acceptance)["first_dm"])
+    provider_dated = report([], [], connection_rows=[{"URL": PEER, "Connected On": "30 Sep 2026"}])
+    check("provider_english_connection_day_is_supported", len(provider_dated["first_dm"]) == 1)
+    check("provider_english_connection_day_keeps_precision", provider_dated["first_dm"][0]["connected_on"] == "2026-09-30" and provider_dated["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    for day in ("31 Sep 2026", "30 Sept 2026", "30 sep 2026", "30 Sep 26", "30 Sep 2026 UTC"):
+        check("invalid_provider_day_" + day, not report([], [], connection_rows=[{"URL": PEER, "Connected On": day}])["first_dm"])
     old_connection = [{"URL": PEER, "Connected On": (NOW - timedelta(days=31)).date().isoformat()}]
     check("old_provider_connection_blocks_first_dm", not report([], [], connection_rows=old_connection)["first_dm"])
     check("old_connection_preserves_manual_followup", len(report([outbound], [activity(outbound)], connection_rows=old_connection)["follow_up"]) == 1)
@@ -235,7 +251,7 @@ def run_matrix() -> dict[str, str]:
     duplicate_alias = [{"URL": PEER, "Connected On": "2026-09-30"}, {"URL": "https://linkedin.com/in/person-a", "Connected On": "2026-10-01"}]
     check("connection_alias_date_conflict_blocks_first_dm", not report([], [], connection_rows=duplicate_alias)["first_dm"])
     check("first_dm_snapshot_phrase", "no observed prior DM in supplied snapshot" in first["first_dm"][0]["reason"])
-    no_research = {"rows": []}
+    no_research: dict[str, Any] = {"rows": []}
     check("missing_research_withheld", not report([], [], research_data=no_research)["first_dm"])
     wrong_research = research()
     wrong_research["rows"][0]["profile_url"] = "https://www.linkedin.com/in/other"
@@ -278,6 +294,15 @@ def run_matrix() -> dict[str, str]:
     for name, extra_events in (("identified_group_row_is_local", []), ("identified_group_activity_is_local", [group_event])):
         result = report([outbound, unrelated_group], [activity(outbound), *extra_events])
         check(name, len(result["follow_up"]) == 1)
+    stale_connections = {"rows": [], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": []}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(days=2)).isoformat()}
+    for name, connection_input in (("stale", stale_connections), ("incomplete", {})):
+        follow = report([outbound], [activity(outbound)], connection_snapshot=connection_input)
+        reply = report([incoming], [activity(incoming, inbound=True)], connection_snapshot=connection_input)
+        first = report([], [], connection_snapshot=connection_input)
+        check(name + "_connections_preserve_follow_up", len(follow["follow_up"]) == 1)
+        check(name + "_connections_preserve_reply", len(reply["reply"]) == 1)
+        check(name + "_connections_block_first_dm", not first["first_dm"])
+        check(name + "_connection_coverage_remains_visible", ("connections_stale_or_missing_acquisition" if name == "stale" else "connections_incomplete") in follow["coverage"]["reasons"])
     for name, value in (("missing", None), ("null", None), ("nonboolean", "unknown"), ("nonmapping", [])):
         incomplete_policy = policy()
         if name == "missing":
@@ -295,8 +320,11 @@ def cli_scenario() -> None:
     """Prove the private CLI emits fixed logs and fresh private report files."""
     with tempfile.TemporaryDirectory() as tmp:
         base = Path(tmp)
-        source = {"schema_version": 1, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
-        inputs = {"source": source, "changelog": changelog([]), "policy": policy(), "research": research()}
+        source: dict[str, Any] = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "30 Sep 2026"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "30 Sep 2026"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
+        source["changelog"] = changelog([])
+        calendar_policy = policy()
+        del calendar_policy["profiles"][PEER]["accepted_at"]
+        inputs = {"source": source, "policy": calendar_policy, "research": research()}
         for name, data in inputs.items():
             path = base / f"{name}.json"
             path.write_text(json.dumps(data), encoding="utf-8")
@@ -304,7 +332,7 @@ def cli_scenario() -> None:
         cmd = [sys.executable, str(ROOT / "scripts" / "build_private_dm_actions.py")]
         for name in inputs:
             cmd.extend([f"--{name}", str(base / f"{name}.json")])
-        cmd.extend(["--output-dir", str(base / "report"), "--account-profile-url", ACCOUNT, "--account-member-urn", OWNER_URN, "--now", NOW.isoformat()])
+        cmd.extend(["--output-dir", str(base / "report"), "--account-profile-url", ACCOUNT, "--now", NOW.isoformat()])
         result = subprocess.run(cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
         assert result.returncode == 0 and result.stdout == "private DM actions: report written\n" and result.stderr == ""
         output = base / "report"
@@ -316,6 +344,35 @@ def cli_scenario() -> None:
         assert len(first) == 1 and first[0]["connected_on"] == "2026-09-30"
         assert "Connected on: 2026-09-30 (calendar day)" in markdown
         assert "Connection source: connections.rows[0].Connected On" in markdown
+        # A separate changelog acquisition must not override the bundled source.
+        override = base / "override.json"
+        override.write_text(json.dumps(changelog([activity(inbox_row(hours=90, content="Synthetic override"))])), encoding="utf-8")
+        override.chmod(0o600)
+        override_cmd = cmd.copy()
+        override_cmd.extend(["--changelog", str(override)])
+        override_cmd[override_cmd.index("--output-dir") + 1] = str(base / "override-report")
+        failed = subprocess.run(override_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
+        assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
+        assert not (base / "override-report").exists()
+        invalid_changelogs: tuple[Any, ...] = (None, {"events": []})
+        for nested in invalid_changelogs:
+            source["changelog"] = nested
+            (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
+            invalid_cmd = cmd.copy()
+            invalid_cmd[invalid_cmd.index("--output-dir") + 1] = str(base / f"bad-changelog-{nested is None}")
+            failed = subprocess.run(invalid_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
+            assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
+            assert not Path(invalid_cmd[invalid_cmd.index("--output-dir") + 1]).exists()
+        source["changelog"] = changelog([])
+        for invalid_urn in (None, "urn:li:organization:123", "urn:li:person:"):
+            source.pop("account_member_urn", None) if invalid_urn is None else source.__setitem__("account_member_urn", invalid_urn)
+            (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
+            invalid_cmd = cmd.copy()
+            invalid_cmd[invalid_cmd.index("--output-dir") + 1] = str(base / f"invalid-{invalid_urn is None}")
+            failed = subprocess.run(invalid_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
+            assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
+            assert not Path(invalid_cmd[invalid_cmd.index("--output-dir") + 1]).exists()
+        source["account_member_urn"] = OWNER_URN
         source["snapshots"]["INBOX"] = None
         (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
         bad_cmd = cmd.copy()

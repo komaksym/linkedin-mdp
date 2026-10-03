@@ -234,3 +234,27 @@ Parent final verification after rebasing unpublished branch onto PR13head36a785d
 PR16 review repairs reproduced tracked artifact rewrite and impossible future connection timestamp before code. Pytest now uses a temporary evidence path; the explicit E2E runner retains committed proof. A future provider connection day blocks all store access before planning. The documented account URL is canonical. The PR10 Unicode source hash repair is included after its lowest owning PR publication. Final checks pass: 56 synthetic E2E scenarios, 24 repository tests twice, scoped Ruff, mypy over 12 source files, source and wheel builds, and diff check. Repeated full-suite runs leave the actual-action evidence artifact unchanged; the unrelated inbox artifact was restored to HEAD.
 
 Parent verified56syntheticE2E,24fulltests,scopedRuff,13-filemypy andsourcewheelbuilds afterfutureproviderday gate beforeDB,canonicaldocexample,temporarypytestartifact,andpublishedPR10c08295fASCIIhashdependency. Sharedconnection_sync.pyunchanged. No livecalls/deployment.
+
+## DM connection coverage correction
+
+Summary: keep CONNECTIONS completeness and freshness gates limited to first-DM eligibility. Replies and follow-ups depend on verified message evidence, prospect coverage and opt-out state.
+
+1. Reproduce stale/incomplete CONNECTIONS suppression in the real report planner.
+2. Separate connection coverage from shared message/prospect gates.
+3. Run E2E, lint, typecheck, full tests and builds before publishing the correction to PR13.
+
+The stale and incomplete coverage regressions failed before the planner change. The corrected planner passes 72 synthetic DM scenarios plus 6 dedicated anonymous-timing scenarios and 23 full tests. Scoped Ruff and strict changed-file mypy pass; source/wheel builds pass. Full-source mypy still reports the unchanged inherited invitation_shortlist.py:276 Optional-key error; this correction does not alter that unrelated module. Historical identity bridging is excluded because it lacks a production source contract and rejects conflicting historical shapes incorrectly. No report eligibility or live publication is claimed.
+
+CodeRabbit also identified pytest rewriting the tracked uncertainty artifact. The narrow pytest run reproduced an mtime change before the wrapper correction; a temporary output path now preserves the tracked artifact. The direct E2E entry point still writes the repeatable committed artifact. Scoped lint and strict wrapper types pass. Proof is retained privately alongside this worktree.
+
+## Real provider connection-date correction
+
+Summary: the collected CONNECTIONS rows use English calendar dates such as 16 Sep 2026. The ISO-only first-DM parser rejects those valid provider dates. All15retained researched profiles have a unique connection row within30calendar days when the observed format is parsed. Add the observed English format without inventing timezone or acceptance instants, reject malformed dates, and validate before publication.
+
+## Calendar-day first-DM eligibility correction
+
+Summary: a uniquely matched provider CONNECTIONS calendar date establishes recent connection status without an invented acceptance instant. First reproduce the timestamp-only policy failure through the report entry point. Then keep any supplied acceptance timestamp as an optional consistency check, preserve all identity, message-history, qualification and opt-out gates, document the input contract, and validate the E2E artifact plus required checks.
+
+Red proof: provider_day_without_invented_acceptance_time fails before production changes.
+
+Validation:88synthetic DM scenarios including the real CLI without an acceptance instant,23full tests,scoped Ruff,strict three-file mypy,and source/wheel builds pass. Invalid supplied timestamps and mismatches remain withheld; missing timestamps use only the verified provider calendar day. Independent review agent hit its account limit before returning; no independent review is claimed. Root scoped review found no new comments/suppressions or unrelated code changes. Restore inherited inbox artifact after pytest before publication.

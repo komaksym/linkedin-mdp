@@ -405,7 +405,7 @@ def _saved_draft(research: Mapping[str, Any], profile: str) -> tuple[str, list[d
 
 
 def _qualified(policy: Mapping[str, Any], profile: str, connected_on: date, now: datetime) -> tuple[bool, str]:
-    """Check cited US PVF fit and an attestation matching the provider connection day."""
+    """Check cited US PVF fit and any supplied acceptance attestation."""
     profiles = policy.get("profiles")
     if not isinstance(profiles, Mapping):
         return False, "qualification_missing"
@@ -415,9 +415,10 @@ def _qualified(policy: Mapping[str, Any], profile: str, connected_on: date, now:
     row = matches[0]
     if row.get("opt_out") is True:
         return False, "opt_out"
-    accepted = _aware_time(row.get("accepted_at"))
-    if accepted is None or accepted > now or accepted.date() != connected_on:
-        return False, "acceptance_date_conflicts_with_provider"
+    if "accepted_at" in row:
+        accepted = _aware_time(row["accepted_at"])
+        if accepted is None or accepted > now or accepted.date() != connected_on:
+            return False, "acceptance_date_conflicts_with_provider"
     if not 0 <= (now.date() - connected_on).days <= 30:
         return False, "recent_acceptance_unverified"
     citations = row.get("qualification_citations")

@@ -225,6 +225,17 @@ def run_matrix() -> dict[str, str]:
     nonempty_missing_watermark["next_start_time"] = None
     check("nonempty_changelog_without_watermark_withheld", not report([outbound], [], log=nonempty_missing_watermark)["follow_up"])
     check("first_dm_connection_date_provenance", first["first_dm"][0]["connected_on"] == "2026-09-30" and first["first_dm"][0]["connection_source"] == "connections.rows[0].Connected On" and first["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    calendar_policy = policy()
+    del calendar_policy["profiles"][PEER]["accepted_at"]
+    calendar_first = report([], [], policy_data=calendar_policy, connection_rows=[{"URL": PEER, "Connected On": "30 Sep 2026"}])
+    check("provider_day_without_invented_acceptance_time", len(calendar_first["first_dm"]) == 1)
+    check("provider_day_without_time_preserves_precision", calendar_first["first_dm"][0]["connected_on"] == "2026-09-30" and calendar_first["first_dm"][0]["connection_date_precision"] == "calendar_day")
+    for day in ((NOW - timedelta(days=31)).date().isoformat(), (NOW + timedelta(days=1)).date().isoformat(), "yesterday"):
+        check("provider_day_recency_without_attestation_" + day, not report([], [], policy_data=calendar_policy, connection_rows=[{"URL": PEER, "Connected On": day}])["first_dm"])
+    for accepted in (None, "yesterday", "2026-09-30T12:00:00", (NOW + timedelta(days=1)).isoformat()):
+        invalid_acceptance = policy()
+        invalid_acceptance["profiles"][PEER]["accepted_at"] = accepted
+        check("supplied_acceptance_attestation_invalid_" + str(accepted), not report([], [], policy_data=invalid_acceptance)["first_dm"])
     provider_dated = report([], [], connection_rows=[{"URL": PEER, "Connected On": "30 Sep 2026"}])
     check("provider_english_connection_day_is_supported", len(provider_dated["first_dm"]) == 1)
     check("provider_english_connection_day_keeps_precision", provider_dated["first_dm"][0]["connected_on"] == "2026-09-30" and provider_dated["first_dm"][0]["connection_date_precision"] == "calendar_day")
@@ -311,7 +322,9 @@ def cli_scenario() -> None:
         base = Path(tmp)
         source: dict[str, Any] = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "30 Sep 2026"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "30 Sep 2026"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
         source["changelog"] = changelog([])
-        inputs = {"source": source, "policy": policy(), "research": research()}
+        calendar_policy = policy()
+        del calendar_policy["profiles"][PEER]["accepted_at"]
+        inputs = {"source": source, "policy": calendar_policy, "research": research()}
         for name, data in inputs.items():
             path = base / f"{name}.json"
             path.write_text(json.dumps(data), encoding="utf-8")

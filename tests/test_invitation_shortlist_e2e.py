@@ -49,6 +49,7 @@ def test_invitation_shortlist_e2e() -> None:
         test_name for test_name in required_present_employer_regressions if test_name not in collection.stdout
     )
     assert not missing_regressions, f"missing red-first regression coverage: {missing_regressions}"
+    assert "test_candidate_citations_must_attest_exact_profile" in collection.stdout
 
     body = {
         "schema_version": 1,
@@ -87,6 +88,7 @@ def test_invitation_shortlist_e2e() -> None:
             "conflicting canonical sets lacked an explicit conflict reason",
             "secondary employer at capacity admitted an invitation",
             "legacy employer rows ignored incomplete coverage metadata",
+            "candidate qualification citation attested a different profile",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 106,
+  "scenario_count": 107,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -34,7 +34,8 @@
     "complete employer sets could not admit qualified-company membership",
     "conflicting canonical sets lacked an explicit conflict reason",
     "secondary employer at capacity admitted an invitation",
-    "legacy employer rows ignored incomplete coverage metadata"
+    "legacy employer rows ignored incomplete coverage metadata",
+    "candidate qualification citation attested a different profile"
   ],
-  "artifact_digest": "e41183b5d521f0539c23463866c2a3befda144b7a66496c42f8d92d6ed06d57c"
+  "artifact_digest": "a05d63363632e731cc6046e235d9f2fb850cd18321cfa4671f0eb201c0bdf197"
 }

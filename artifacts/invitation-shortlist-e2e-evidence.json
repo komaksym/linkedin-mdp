@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "scenario_count": 88,
+  "all_scenarios_passed": true,
+  "red_first_failures_reproduced": [
+    "provider-local invitation dates lost to ISO-only parsing",
+    "observation timestamps misused as invitation dates",
+    "raw-only provider invitations omitted from exported rows",
+    "history rows without event IDs collapsed to one event",
+    "duplicate prospect IDs allowed event identity misattachment",
+    "CRM-only policy permitted for an all-history report",
+    "complete empty provider pages rejected",
+    "normalized CRM send dates lost or conflicting aliases selected",
+    "text or ambiguous opt-out flags admitted recommendations",
+    "date-precision event calendar days shifted by UTC conversion",
+    "private-file cleanup masked a real filesystem write failure",
+    "undated invitation evidence omitted from latest-employer capacity",
+    "provider, CRM, and Supabase send evidence counted more than once per profile",
+    "conflicting canonical current-employer assignments permitted capacity claims",
+    "candidate qualification employer disagreed with owner mapping",
+    "unknown historical identity omitted from global withhold queue",
+    "read-only report constructed a recommendation persistence event",
+    "invalid canonical employer aliases left contradictory resolved audit entries",
+    "distinct invalid employer identity keys collapsed without source pointers",
+    "unpaired Unicode employer keys failed before unresolved queue recording",
+    "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
+    "candidate qualification citation attested a different profile"
+  ],
+  "artifact_digest": "2dabc51de56f7b9d802c8441f279d3d1239107f719426e0a5cafcf5e69afa59f"
+}

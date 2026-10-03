@@ -1,5 +1,25 @@
 # Implementation plans
 
+## Invitation shortlist
+
+Summary: build one deterministic, private invitation shortlist from the approved live source export and explicitly attested current qualification evidence. Keep replies, first-DM research orchestration and publication in subsequent slices.
+
+- [x] Ground complete live snapshots and existing generic Supabase prospects/events at runtime `817fe2d`. The owner-approved encrypted source run 36994464162 passed; plaintext stays local and private.
+- [x] Compare designs. Choose a typed pure shortlist result behind one input boundary and a thin private-file CLI. Exact profile identities determine exclusions; verified company aliases determine cap allocation; each rank factor retains evidence or an explicit unknown reason.
+- [x] Write the E2E failure cases before implementation. Exercise the real CLI and repository client data shapes; keep repeatable evidence free of member records.
+- [x] Implement source validation, historical exclusions, qualification gates, all-history event bindings, deterministic ranking and private report/audit plans.
+- [x] Verify the private live export and actionable research queue. Run lint, typecheck, E2E/full tests and build. The all-history audit correctly withholds recommendations until event-specific employer research is supplied. Independent review accepted the complete-source and historical identity gates. The parent reran 47 scenario checks, the CLI wrapper, 22 full-suite checks, scoped lint, 12-file typecheck and both package builds. The raster infographic is included for PR publication.
+
+The source snapshots retain no provider generation timestamp. Show this uncertainty separately from acquisition time and complete transport. The collector's `M/D/YY, h:mm AM/PM` dates retain provider-local calendar-day precision with unknown timezone. Supabase invitation timestamps count only when their payload states actual-event semantics; observation times remain unknown. Existing imported research fields contain alignment errors and are not automatically qualification facts. A caller-attested cited envelope must bind exact profile, current role, US location, PVF employer and verified company aliases. The builder validates citation structure and dates but does not fetch the cited pages. No acceptance probability is claimed.
+
+The user selected all-history. Every outgoing invitation event, including a dated CRM send, needs an exact-profile, event-date-specific cited employer binding. CRM's current Company value, acceptance, and connection status cannot satisfy that binding. Unknown or unsupported history withholds all recommendations and preserves source pointers in the private research queue.
+
+Throughput checkpoint:
+- Completed gates: complete live read, failing E2E before implementation, all-history scope, event-date semantics, private audit-only run, and local lint/type/test/build checks.
+- Independent workstreams: one exclusive implementation owner builds the shortlist; parent researches qualification; a read-only reviewer challenges identity, cap and source gates.
+- Shared mutable state: the implementation owner alone edits this branch. Private research and source files stay outside the Git checkout. Pushes and report writes remain serialized.
+- Smallest safe decomposition: one shortlist feature with pure decision logic, private-file CLI, docs and E2E. No migrations, new production dependencies, schedules or outreach sends.
+
 ## Inbox evidence and actionable report
 
 Summary: add the first reviewable prerequisite for the owner's two-list report. Preserve private message observations for existing prospects without treating unknown invitation notes as confirmed DMs. The complete desired report contract is in `docs/action-report-contract.md`.
@@ -138,3 +158,17 @@ The approved credentialed validation reproduced zero planned events. Read-only d
 - Independent workstreams: n/a. The contract couples snapshot validation, planning, and apply behavior, and the clone has one owner.
 - Shared mutable state: one owner writes the exclusive clone; plan, scenario runner, implementation, and evidence happen in order.
 - Smallest safe decomposition: one implementation owner keeps the 1:1/group/thread safety invariant visible across the single slice.
+
+PR #10 review wave: reproduced 15 failures before production edits across complete empty provider pages, normalized/conflicting CRM send-date labels, imported opt-out flags and non-UTC date precision. Correct interpretation at those input boundaries; preserve strict raw/exported set equality and UTC instant semantics. Expanded the E2E matrix to 70 scenarios. Also reproduced CodeRabbit’s descriptor cleanup failure with a real OS file-size limit; caller-owned descriptor cleanup now preserves the original filesystem error. Parent validation passed all 70 scenarios plus wrapper, 22 full-suite checks, scoped Ruff, 12-file mypy, sdist/wheel and private live-source CLI.
+
+## PR10 current-employer contract amendment
+
+The owner's latest current-employer and read-only report contract supersedes earlier plans for employer-at-invitation proof and recommendation persistence. `qualification.current_employers` maps exact normalized profile identities to a registered company and citations. Count each outgoing person once against that mapped employer across provider, CRM, and actual Supabase invitation evidence. Event dates and prior employers remain audit metadata. They do not decide capacity.
+
+Conflicting or invalid current-employer assignments, and historical send evidence with unknown identity or employer, enter an explicit private queue and withhold all capacity claims. A candidate whose qualification employer conflicts with the mapping is withheld. The report emits no recommendation event plan. Transport freshness, identity normalization, ranking, suppression, connection exclusion, and previously-invited exclusion remain active.
+
+Red-first E2E against `19a769a` produced five expected failures while the prior 70 scenarios passed. The current implementation passes all 75 scenarios. Parent validation passed the 75-scenario matrix plus wrapper, 22 full-suite checks, scoped strict Ruff, 12-file mypy, and sdist/wheel build. The private live-input CLI produced an explicit current-employer queue with no recommendations or event plan and mode0700/0600 artifacts. The qualification envelope is intentionally empty, so no real shortlist eligibility is claimed. The revised raster infographic and reproducible source records are included. Independent correctness review found no actionable defect. PR publication and fresh current-head reviews remain pending; no merge is authorized.
+
+PR10 fresh review audit corrections: six invalid canonical-alias scenarios and one distinct unsupported-key queue scenario failed before production fixes. Queued profiles no longer retain resolved current employer assignments or capacity attribution. Every employer queue entry retains a stable opaque key ID and source pointer.82 scenario matrix plus wrapper,22 full-suite checks, scoped strict Ruff,12-file mypy and package builds pass. No report publication or database writes occurred.
+
+PR10 Unicode repair verification before publication: 84 scenarios plus wrapper, 22 full-suite checks, strict scoped Ruff, 12-file mypy and builds passed before the usage pause. Pending diff inspected on resume; no source behavior changed since that validation. Separate synthetic CLI proof and independent review requested. Fixed fresh CodeRabbit wording finding by spacing adjacent counts in the matrix record.

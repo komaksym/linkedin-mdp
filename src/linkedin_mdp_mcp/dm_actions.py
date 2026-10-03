@@ -434,6 +434,7 @@ def plan_dm_actions(
         raise ValueError("clock_timezone_invalid")
     now = now.astimezone(UTC)
     reasons = list(evidence.coverage_reasons)
+    connection_reasons: list[str] = []
     try:
         prospect_rows = _validate_database_snapshot(prospects, "prospects")
     except (ShortlistInputError, TypeError):
@@ -446,10 +447,10 @@ def plan_dm_actions(
         connection_rows = _validate_provider_snapshot(connections, "CONNECTIONS")
     except (ShortlistInputError, TypeError):
         connection_rows = []
-        reasons.append("connections_incomplete")
+        connection_reasons.append("connections_incomplete")
     connections_acquired = _aware_time(connections.get("completed_at")) if isinstance(connections, Mapping) else None
     if connections_acquired is None or connections_acquired > now or now - connections_acquired > timedelta(days=1):
-        reasons.append("connections_stale_or_missing_acquisition")
+        connection_reasons.append("connections_stale_or_missing_acquisition")
     connections_by_profile: dict[str, list[tuple[int, Mapping[str, Any]]]] = defaultdict(list)
     for index, connection in enumerate(connection_rows):
         profile = normalize_profile_url(connection.get("URL"))
@@ -460,7 +461,7 @@ def plan_dm_actions(
         profile = normalize_profile_url(row.get("linkedin_url"))
         if profile:
             profiles[profile].append(row)
-    report: dict[str, Any] = {"reply": [], "follow_up": [], "first_dm": [], "withheld": [], "coverage": {"reasons": sorted(set(reasons)), "upstream_freshness": evidence.upstream_freshness, "changelog_scope": evidence.changelog_scope}}
+    report: dict[str, Any] = {"reply": [], "follow_up": [], "first_dm": [], "withheld": [], "coverage": {"reasons": sorted(set(reasons + connection_reasons)), "upstream_freshness": evidence.upstream_freshness, "changelog_scope": evidence.changelog_scope}}
     for profile in sorted(profiles):
         rows = profiles[profile]
         if len(rows) != 1:
@@ -501,6 +502,9 @@ def plan_dm_actions(
                 continue
         if messages or unknown:
             report["withheld"].append({**common, "reason": "message_history_ambiguous_or_action_not_due"})
+            continue
+        if connection_reasons:
+            report["withheld"].append({**common, "reason": "source_coverage_incomplete"})
             continue
         connection_matches = connections_by_profile.get(profile, [])
         if not connection_matches:

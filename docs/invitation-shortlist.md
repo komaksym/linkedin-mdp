@@ -10,7 +10,7 @@ Supabase `prospects` and `events` envelopes must report success, `truncated: fal
 
 ## Qualification and current employers
 
-Qualification facts bind to exact canonical LinkedIn profile URLs. Current name, role, US country, and PVF employer require an HTTP citation with timezone-aware `retrieved_at` no older than 90 days. The caller attests that the cited fact was researched. The builder checks citation shape and retrieval freshness but does not fetch webpage contents.
+Qualification facts bind to exact canonical LinkedIn profile URLs. Current name, role, US country, and PVF employer require an HTTP citation with timezone-aware `retrieved_at` no older than 90 days plus a `profile_url` attestation that normalizes to the candidate's exact profile. The caller attests that the cited fact was researched. The builder validates citation shape, retrieval freshness, and this exact-profile binding, but does not fetch webpage contents.
 
 The `current_employers` object maps raw profile URL keys to a registered company ID and citations. URLs normalize with the same Unicode-preserving identity normalizer used for inbox participants. Multiple keys that normalize to one profile may repeat the same company assignment. Conflicting assignments, unregistered companies, invalid citations, or unsupported identities enter the private queue and withhold all capacity claims. The owner's explicit assumption is that each person's latest known employer is present. Citation retrieval time must be recent; source publication or indexing date does not determine historical employer eligibility.
 
@@ -36,10 +36,10 @@ The example uses synthetic identities and URLs.
     {
       "profile_url": "https://www.linkedin.com/in/example-person",
       "identity": {
-        "name": {"value": "Example Person", "citations": [{"url": "https://evidence.example/profile", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]},
-        "current_role": {"value": "Buyer", "citations": [{"url": "https://evidence.example/role", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]},
-        "country": {"value": "US", "citations": [{"url": "https://evidence.example/location", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]},
-        "pvf_employer": {"value": true, "company_id": "co-1", "company_name": "Example PVF LLC", "citations": [{"url": "https://evidence.example/employer", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]}
+        "name": {"value": "Example Person", "citations": [{"url": "https://evidence.example/profile", "profile_url": "https://www.linkedin.com/in/example-person", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]},
+        "current_role": {"value": "Buyer", "citations": [{"url": "https://evidence.example/role", "profile_url": "https://www.linkedin.com/in/example-person", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]},
+        "country": {"value": "US", "citations": [{"url": "https://evidence.example/location", "profile_url": "https://www.linkedin.com/in/example-person", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]},
+        "pvf_employer": {"value": true, "company_id": "co-1", "company_name": "Example PVF LLC", "citations": [{"url": "https://evidence.example/employer", "profile_url": "https://www.linkedin.com/in/example-person", "source_date": null, "retrieved_at": "2026-10-02T10:00:00Z"}]}
       },
       "rank_factors": {}
     }

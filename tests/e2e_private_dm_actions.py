@@ -106,13 +106,13 @@ def research() -> dict[str, Any]:
     }]}
 
 
-def report(rows: list[dict[str, Any]], events: list[dict[str, Any]], *, policy_data: dict[str, Any] | None = None, research_data: dict[str, Any] | None = None, inbox: dict[str, Any] | None = None, log: dict[str, Any] | None = None, connection_rows: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def report(rows: list[dict[str, Any]], events: list[dict[str, Any]], *, policy_data: dict[str, Any] | None = None, research_data: dict[str, Any] | None = None, inbox: dict[str, Any] | None = None, log: dict[str, Any] | None = None, connection_rows: list[dict[str, Any]] | None = None, connection_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run the complete pure classification and planning boundary."""
     evidence = classify_dm_evidence(inbox or snapshot(rows), log or changelog(events), account_profile_url=ACCOUNT, account_member_urn=OWNER_URN, now=NOW)
     prospects = {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}
     connected = connection_rows if connection_rows is not None else [{"URL": PEER, "Connected On": (NOW - timedelta(days=2)).date().isoformat()}]
     connections = {"rows": deepcopy(connected), "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": deepcopy(connected)}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}
-    return plan_dm_actions(evidence, prospects, connections, research_data if research_data is not None else research(), policy=policy_data if policy_data is not None else policy(), now=NOW)
+    return plan_dm_actions(evidence, prospects, connection_snapshot if connection_snapshot is not None else connections, research_data if research_data is not None else research(), policy=policy_data if policy_data is not None else policy(), now=NOW)
 
 
 def run_matrix() -> dict[str, str]:
@@ -278,6 +278,15 @@ def run_matrix() -> dict[str, str]:
     for name, extra_events in (("identified_group_row_is_local", []), ("identified_group_activity_is_local", [group_event])):
         result = report([outbound, unrelated_group], [activity(outbound), *extra_events])
         check(name, len(result["follow_up"]) == 1)
+    stale_connections = {"rows": [], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": []}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(days=2)).isoformat()}
+    for name, connection_input in (("stale", stale_connections), ("incomplete", {})):
+        follow = report([outbound], [activity(outbound)], connection_snapshot=connection_input)
+        reply = report([incoming], [activity(incoming, inbound=True)], connection_snapshot=connection_input)
+        first = report([], [], connection_snapshot=connection_input)
+        check(name + "_connections_preserve_follow_up", len(follow["follow_up"]) == 1)
+        check(name + "_connections_preserve_reply", len(reply["reply"]) == 1)
+        check(name + "_connections_block_first_dm", not first["first_dm"])
+        check(name + "_connection_coverage_remains_visible", ("connections_stale_or_missing_acquisition" if name == "stale" else "connections_incomplete") in follow["coverage"]["reasons"])
     for name, value in (("missing", None), ("null", None), ("nonboolean", "unknown"), ("nonmapping", [])):
         incomplete_policy = policy()
         if name == "missing":

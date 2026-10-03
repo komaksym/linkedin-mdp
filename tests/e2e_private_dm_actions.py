@@ -235,7 +235,7 @@ def run_matrix() -> dict[str, str]:
     duplicate_alias = [{"URL": PEER, "Connected On": "2026-09-30"}, {"URL": "https://linkedin.com/in/person-a", "Connected On": "2026-10-01"}]
     check("connection_alias_date_conflict_blocks_first_dm", not report([], [], connection_rows=duplicate_alias)["first_dm"])
     check("first_dm_snapshot_phrase", "no observed prior DM in supplied snapshot" in first["first_dm"][0]["reason"])
-    no_research = {"rows": []}
+    no_research: dict[str, Any] = {"rows": []}
     check("missing_research_withheld", not report([], [], research_data=no_research)["first_dm"])
     wrong_research = research()
     wrong_research["rows"][0]["profile_url"] = "https://www.linkedin.com/in/other"
@@ -295,7 +295,7 @@ def cli_scenario() -> None:
     """Prove the private CLI emits fixed logs and fresh private report files."""
     with tempfile.TemporaryDirectory() as tmp:
         base = Path(tmp)
-        source = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
+        source: dict[str, Any] = {"schema_version": 1, "account_member_urn": OWNER_URN, "collected_at": (NOW - timedelta(minutes=5)).isoformat(), "snapshots": {"INBOX": snapshot([]), "CONNECTIONS": {"rows": [{"URL": PEER, "Connected On": "2026-09-30"}], "raw_elements": [{"snapshotDomain": "CONNECTIONS", "snapshotData": [{"URL": PEER, "Connected On": "2026-09-30"}]}], "source_result": "success", "truncated": False, "page_count": 1, "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}, "prospects": {"rows": [{"id": "prospect-a", "linkedin_url": PEER, "created_at": "2026-09-01T01:02:03+00:00", "attributes": {}}], "source_result": "success", "truncated": False, "page_count": 1, "row_count": 1, "consistency": "stable_count_and_unique_ids", "completed_at": (NOW - timedelta(minutes=5)).isoformat()}}
         source["changelog"] = changelog([])
         inputs = {"source": source, "policy": policy(), "research": research()}
         for name, data in inputs.items():
@@ -327,7 +327,8 @@ def cli_scenario() -> None:
         failed = subprocess.run(override_cmd, cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT / "src")}, capture_output=True, text=True, check=False)
         assert failed.returncode == 1 and failed.stdout == "private DM actions: failed\n" and failed.stderr == ""
         assert not (base / "override-report").exists()
-        for nested in (None, {"events": []}):
+        invalid_changelogs: tuple[Any, ...] = (None, {"events": []})
+        for nested in invalid_changelogs:
             source["changelog"] = nested
             (base / "source.json").write_text(json.dumps(source), encoding="utf-8")
             invalid_cmd = cmd.copy()

@@ -461,7 +461,6 @@ def plan_dm_actions(
         if profile:
             profiles[profile].append(row)
     report: dict[str, Any] = {"reply": [], "follow_up": [], "first_dm": [], "withheld": [], "coverage": {"reasons": sorted(set(reasons)), "upstream_freshness": evidence.upstream_freshness, "changelog_scope": evidence.changelog_scope}}
-    global_unknown = any(item.profile_url is None for item in evidence.uncertain)
     for profile in sorted(profiles):
         rows = profiles[profile]
         if len(rows) != 1:
@@ -483,7 +482,7 @@ def plan_dm_actions(
         messages = [item for item in evidence.verified if item.profile_url == profile]
         unknown = [item for item in evidence.uncertain if item.profile_url in (profile, None)]
         common = {"profile_url": profile, "prospect_id": row["id"], "date_added": _date_added(row, now), "date_added_source": f"prospects.rows[{prospect_rows.index(row)}].created_at"}
-        if reasons or global_unknown:
+        if reasons:
             report["withheld"].append({**common, "reason": "source_coverage_incomplete"})
             continue
         inbound = [item for item in messages if item.direction == "inbound"]

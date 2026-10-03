@@ -44,6 +44,19 @@ def run_matrix() -> dict[str, str]:
         and recent_result["withheld"][0]["reason"] == "message_history_ambiguous_or_action_not_due",
     )
 
+    incoming = inbox_row(inbound=True, hours=1)
+    old_reply_result = report([incoming, old], [activity(incoming, inbound=True)])
+    check("older_anonymous_observation_allows_verified_reply", len(old_reply_result["reply"]) == 1)
+
+    newest = anonymous_row(hours=0)
+    recent_reply_result = report([incoming, newest], [activity(incoming, inbound=True)])
+    check(
+        "newer_anonymous_observation_blocks_verified_reply",
+        not recent_reply_result["reply"]
+        and recent_reply_result["withheld"]
+        and recent_reply_result["withheld"][0]["reason"] == "message_history_ambiguous_or_action_not_due",
+    )
+
     first_result = report([old], [])
     check(
         "anonymous_observation_still_blocks_first_dm",

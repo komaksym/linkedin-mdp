@@ -1,0 +1,12 @@
+{
+  "run_status": "passed",
+  "scenario_count": 6,
+  "verdicts": {
+    "anonymous_observation_still_blocks_first_dm": "passed",
+    "anonymous_observation_without_time_blocks_due_followup": "passed",
+    "newer_anonymous_observation_blocks_due_followup": "passed",
+    "newer_anonymous_observation_blocks_verified_reply": "passed",
+    "older_anonymous_observation_allows_due_followup": "passed",
+    "older_anonymous_observation_allows_verified_reply": "passed"
+  }
+}

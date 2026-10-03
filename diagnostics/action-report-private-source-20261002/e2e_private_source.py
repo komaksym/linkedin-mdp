@@ -37,7 +37,7 @@ EXPECTED_FAILURES: dict[str, tuple[type[Exception], str]] = {
     "change_wrong_endpoint": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed endpoint"),
     "change_wrong_q": (LinkedInAPIError, "LinkedIn API error 0: changelog next link changed request scope"),
     "change_bad_next": (LinkedInAPIError, "LinkedIn API error 0: malformed changelog paging link"),
-    **{case: (RuntimeError, "private source collection failed") for case in ("db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate", "change_bad_event", "change_no_watermark", "change_zero_watermark", "change_negative_watermark", "change_boolean_watermark", "change_truncated", "auth_missing", "auth_multiple", "auth_malformed", "auth_wrong_prefix")},
+    **{case: (RuntimeError, "private source collection failed") for case in ("db_cap", "db_malformed", "db_missing_count", "db_changed_count", "db_duplicate", "change_bad_event", "change_no_watermark", "change_zero_watermark", "change_negative_watermark", "change_boolean_watermark", "change_truncated", "auth_missing", "auth_multiple", "auth_malformed", "auth_wrong_prefix", "auth_suffix_whitespace", "auth_suffix_internal_space", "auth_suffix_bad_chars")},
 }
 
 async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, list[str]]:
@@ -57,6 +57,12 @@ async def exercise(case: str, cert: Path, target: Path) -> tuple[bytes | None, l
                 elements = [{"memberComplianceAuthorizationKey": {"member": 42}}]
             if case == "auth_wrong_prefix":
                 elements = [{"memberComplianceAuthorizationKey": {"member": "urn:li:organization:synthetic"}}]
+            if case == "auth_suffix_whitespace":
+                elements = [{"memberComplianceAuthorizationKey": {"member": "urn:li:person: synthetic-member"}}]
+            if case == "auth_suffix_internal_space":
+                elements = [{"memberComplianceAuthorizationKey": {"member": "urn:li:person:synthetic member"}}]
+            if case == "auth_suffix_bad_chars":
+                elements = [{"memberComplianceAuthorizationKey": {"member": "urn:li:person:synthetic/member"}}]
             return httpx.Response(200, json={"elements": elements})
         if request.url.path == "/rest/memberChangeLogs":
             if case == "change_bad_envelope":

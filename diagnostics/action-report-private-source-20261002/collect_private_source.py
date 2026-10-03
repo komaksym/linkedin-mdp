@@ -72,7 +72,10 @@ async def collect_sources(linkedin: LinkedInMDPClient, store: SupabaseClient, *,
     authorization = elements[0]
     identity = authorization.get("memberComplianceAuthorizationKey") if isinstance(authorization, dict) else None
     account_member_urn = identity.get("member") if isinstance(identity, dict) else None
-    require(isinstance(account_member_urn, str) and account_member_urn.startswith("urn:li:person:") and len(account_member_urn) > len("urn:li:person:"))
+    require(
+        isinstance(account_member_urn, str)
+        and re.fullmatch(r"urn:li:person:[A-Za-z0-9_-]+", account_member_urn) is not None
+    )
     snapshots: dict[str, Any] = {}
     for domain in DOMAINS:
         started = datetime.now(UTC).isoformat()

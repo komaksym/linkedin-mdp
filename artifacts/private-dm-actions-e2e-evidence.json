@@ -1,6 +1,6 @@
 {
   "run_status": "passed",
-  "scenario_count": 72,
+  "scenario_count": 79,
   "verdicts": {
     "ambiguous_correlation": "passed",
     "attachment_only_empty_content_verified": "passed",
@@ -25,6 +25,11 @@
     "incomplete_connections_preserve_follow_up": "passed",
     "incomplete_connections_preserve_reply": "passed",
     "input_order_determinism": "passed",
+    "invalid_provider_day_30 Sep 2026 UTC": "passed",
+    "invalid_provider_day_30 Sep 26": "passed",
+    "invalid_provider_day_30 Sept 2026": "passed",
+    "invalid_provider_day_30 sep 2026": "passed",
+    "invalid_provider_day_31 Sep 2026": "passed",
     "invitation_note_not_dm": "passed",
     "later_unknown_inbound_blocks_followup": "passed",
     "later_unknown_outbound_blocks_reply": "passed",
@@ -54,6 +59,8 @@
     "policy_null_is_unverified": "passed",
     "policy_provider_date_mismatch_blocks_first_dm": "passed",
     "private_cli": "passed",
+    "provider_english_connection_day_is_supported": "passed",
+    "provider_english_connection_day_keeps_precision": "passed",
     "qualification_required": "passed",
     "qualification_url_userinfo_rejected": "passed",
     "research_identity_mismatch": "passed",

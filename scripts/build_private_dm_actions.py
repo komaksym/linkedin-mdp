@@ -73,17 +73,16 @@ def main(argv: list[str] | None = None) -> int:
     """Validate private inputs and write fresh mode-0700/0600 local outputs."""
     try:
         parser = _Parser(description="Build a private LinkedIn DM action report.")
-        for name in ("source", "changelog", "policy", "research"):
+        for name in ("source", "policy", "research"):
             parser.add_argument(f"--{name}", required=True, type=Path)
         parser.add_argument("--output-dir", required=True, type=Path)
         parser.add_argument("--account-profile-url", required=True)
         parser.add_argument("--now", help="Timezone-aware ISO clock for repeatable offline runs")
         args = parser.parse_args(argv)
         source = _read(args.source)
-        changelog = _read(args.changelog)
         policy = _read(args.policy)
         research = _read(args.research)
-        if not all(isinstance(item, dict) for item in (source, changelog, policy, research)):
+        if not all(isinstance(item, dict) for item in (source, policy, research)):
             raise ValueError("input_shape_invalid")
         account_member_urn = source.get("account_member_urn")
         if not isinstance(account_member_urn, str) or re.fullmatch(r"urn:li:person:[A-Za-z0-9_-]+", account_member_urn) is None:
@@ -92,6 +91,19 @@ def main(argv: list[str] | None = None) -> int:
         source_acquired = _aware_time(source.get("collected_at"))
         if source.get("schema_version") != 1 or source_acquired is None or source_acquired > now or now - source_acquired > timedelta(days=1):
             raise ValueError("source_manifest_invalid")
+        changelog = source.get("changelog")
+        if (
+            not isinstance(changelog, dict)
+            or not isinstance(changelog.get("events"), list)
+            or changelog.get("truncated") is not False
+            or not isinstance(changelog.get("page_count"), int)
+            or isinstance(changelog.get("page_count"), bool)
+            or changelog["page_count"] < 1
+            or (changelog.get("next_start_time") is None and changelog["events"])
+            or (changelog.get("next_start_time") is not None and not isinstance(changelog.get("next_start_time"), int))
+            or _aware_time(changelog.get("collected_at")) is None
+        ):
+            raise ValueError("source_changelog_invalid")
         evidence = classify_dm_evidence(source["snapshots"]["INBOX"], changelog, account_profile_url=args.account_profile_url, account_member_urn=account_member_urn, now=now)
         result = plan_dm_actions(evidence, source["prospects"], source["snapshots"]["CONNECTIONS"], research, policy=policy, now=now)
         output_dir = args.output_dir

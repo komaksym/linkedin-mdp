@@ -367,11 +367,17 @@ def _date_added(row: Mapping[str, Any], now: datetime) -> str | None:
 
 
 def _connection_day(value: Any) -> date | None:
-    """Read the provider's calendar day without inventing a connection instant."""
-    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+    """Read ISO or provider English calendar dates without inventing a time or zone."""
+    if not isinstance(value, str):
         return None
     try:
-        return date.fromisoformat(value)
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+            return date.fromisoformat(value)
+        match = re.fullmatch(r"(\d{1,2}) ([A-Z][a-z]{2}) (\d{4})", value)
+        months = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        if match is None or match[2] not in months:
+            return None
+        return date(int(match[3]), months.index(match[2]) + 1, int(match[1]))
     except ValueError:
         return None
 

@@ -224,3 +224,9 @@ Summary: keep CONNECTIONS completeness and freshness gates limited to first-DM e
 3. Run E2E, lint, typecheck, full tests and builds before publishing the correction to PR13.
 
 The stale and incomplete coverage regressions failed before the planner change. The corrected planner passes 72 synthetic DM scenarios plus 6 dedicated anonymous-timing scenarios and 23 full tests. Scoped Ruff and strict changed-file mypy pass; source/wheel builds pass. Full-source mypy still reports the unchanged inherited invitation_shortlist.py:276 Optional-key error; this correction does not alter that unrelated module. Historical identity bridging is excluded because it lacks a production source contract and rejects conflicting historical shapes incorrectly. No report eligibility or live publication is claimed.
+
+CodeRabbit also identified pytest rewriting the tracked uncertainty artifact. The narrow pytest run reproduced an mtime change before the wrapper correction; a temporary output path now preserves the tracked artifact. The direct E2E entry point still writes the repeatable committed artifact. Scoped lint and strict wrapper types pass. Proof is retained privately alongside this worktree.
+
+## Real provider connection-date correction
+
+Summary: the collected CONNECTIONS rows use English calendar dates such as 16 Sep 2026. The ISO-only first-DM parser rejects those valid provider dates. All15retained researched profiles have a unique connection row within30calendar days when the observed format is parsed. Add the observed English format without inventing timezone or acceptance instants, reject malformed dates, and validate before publication.

@@ -1,0 +1,23 @@
+{
+  "kind": "synthetic HTTP boundary E2E",
+  "scenarios": {
+    "blocked_queues_preserve_conditional_rows": "passed",
+    "both_docs_complete": "passed",
+    "dual_preflight_markers_refused": "passed",
+    "dual_preflight_nested_refused": "passed",
+    "dual_preflight_published_refused": "passed",
+    "dual_preflight_rich_refused": "passed",
+    "dual_preflight_sharing_refused": "passed",
+    "first_doc_conflict_retries": "passed",
+    "identical_destinations_refused": "passed",
+    "invalid_inputs_refused": "passed",
+    "marker_in_retained_draft_refused": "passed",
+    "missing_conditional_rows_refused": "passed",
+    "missing_configuration": "passed",
+    "read_state_preserved": "passed",
+    "rerun_converges": "passed",
+    "retained_evidence_required": "passed",
+    "second_conflict_fails_closed": "passed",
+    "stale_retained_counts_refused": "passed"
+  }
+}

@@ -33,9 +33,9 @@ class GoogleDocConfig:
     document_id: str
 
     @classmethod
-    def from_env(cls) -> "GoogleDocConfig":
+    def from_env(cls, *, document_id_env: str = "GOOGLE_REPORT_DOCUMENT_ID") -> GoogleDocConfig:
         """Load required OAuth values without including them in error messages."""
-        names = ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REFRESH_TOKEN", "GOOGLE_REPORT_DOCUMENT_ID")
+        names = ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REFRESH_TOKEN", document_id_env)
         values = [os.getenv(name) for name in names]
         if any(value is None or not value.strip() for value in values):
             raise GoogleReportError("configuration unavailable")
@@ -138,6 +138,16 @@ class GoogleDocPublisher:
 
     async def publish(self, result: ReportResult) -> None:
         """Preflight, inspect marker bounds, and atomically replace the report once."""
+        await self.publish_text(render_report(result))
+
+    async def publish_text(self, body: str) -> None:
+        """Preflight, inspect marker bounds, and atomically replace the region once."""
+        if BEGIN_MARKER in body or END_MARKER in body:
+            raise GoogleReportError("report text contains managed markers")
+        await self._replace_region(body)
+
+    async def _replace_region(self, text: str) -> None:
+        """Authenticate, validate markers, and atomically replace the region once."""
         token = await self._access_token()
         document = await self._preflight_and_read(token)
         for attempt in range(2):
@@ -145,7 +155,7 @@ class GoogleDocPublisher:
             # Recheck immediately before the content mutation, including on retry.
             await self._preflight(token)
             requests: list[dict[str, Any]] = [
-                {"insertText": {"location": {"index": start, "tabId": tab_id}, "text": render_report(result)}},
+                {"insertText": {"location": {"index": start, "tabId": tab_id}, "text": text}},
             ]
             if start < end:
                 requests.insert(0, {"deleteContentRange": {"range": {"startIndex": start, "endIndex": end, "tabId": tab_id}}})

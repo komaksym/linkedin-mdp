@@ -269,6 +269,59 @@ async def run_scenarios() -> dict[str, str]:
                 assert await cli.run() == 2
             assert out.getvalue() == "morning report: configuration unavailable\n"
             results["missing_configuration"] = "passed"
+    results.update(await run_generic_text_scenarios())
+    return results
+
+
+async def run_generic_text_scenarios() -> dict[str, str]:
+    """Prove the shared managed-region boundary preserves every Google safety guard."""
+    results: dict[str, str] = {}
+    with patch.dict(os.environ, ENV):
+        for name in ("complete", "conflict", "conflict_twice", "sharing", "published", "markers", "rich", "nested"):
+            service = Services(name)
+            async with httpx.AsyncClient(transport=httpx.MockTransport(service.handle), follow_redirects=False) as http:
+                publisher = report.GoogleDocPublisher(report.GoogleDocConfig.from_env(), http=http)
+                try:
+                    await publisher.publish_text("Synthetic complete-text report\nSecond line\n")
+                except report.GoogleReportError:
+                    assert name in {"conflict_twice", "sharing", "published", "markers", "rich", "nested"}, name
+                else:
+                    assert name in {"complete", "conflict"}, name
+            if name in {"complete", "conflict"}:
+                assert service.writes == 1, name
+                assert service.text.startswith("🧭 Operator note\n[BEGIN AUTOMATED REPORT]\n"), name
+                assert service.text.endswith("[END AUTOMATED REPORT]\nKeep this note.\n"), name
+                assert "Synthetic complete-text report\nSecond line\n" in service.text, name
+                assert "LinkedIn CONNECTIONS reconciliation" not in service.text, name
+            else:
+                assert service.writes == 0 and service.text == TEXT, name
+            if name == "conflict":
+                assert service.attempts == 2 and service.permissions == 4
+            if name == "conflict_twice":
+                assert service.attempts == 2
+            results[f"publish_text_{name}"] = "passed"
+
+        service = Services("complete")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(service.handle), follow_redirects=False) as http:
+            publisher = report.GoogleDocPublisher(report.GoogleDocConfig.from_env(), http=http)
+            await publisher.publish_text("Stable body\n")
+            first = service.text
+            await publisher.publish_text("Stable body\n")
+            assert service.text == first
+            assert service.writes == 2
+        results["publish_text_rerun_converges"] = "passed"
+
+        service = Services("complete")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(service.handle), follow_redirects=False) as http:
+            publisher = report.GoogleDocPublisher(report.GoogleDocConfig.from_env(), http=http)
+            try:
+                await publisher.publish_text("safe\n[BEGIN AUTOMATED REPORT]\nunsafe\n")
+            except report.GoogleReportError:
+                pass
+            else:
+                raise AssertionError("managed marker injection was accepted")
+        assert service.writes == 0 and service.text == TEXT
+        results["publish_text_rejects_managed_markers"] = "passed"
     return results
 
 

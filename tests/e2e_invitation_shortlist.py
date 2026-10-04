@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 from copy import deepcopy
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -152,6 +152,54 @@ def provider_timestamp(value: datetime) -> str:
 def invitation(profile_url: str) -> dict[str, Any]:
     """Return one outgoing provider invitation row."""
     return {"Direction": "OUTGOING", "inviteeProfileUrl": profile_url, "Sent At": provider_timestamp(NOW)}
+
+
+def legacy_baseline_source(
+    *,
+    provider_offset_days: int = 0,
+    provider_rows: list[dict[str, Any]] | None = None,
+    events: list[dict[str, Any]] | None = None,
+    event_source: str = "GOOGLE_SHEETS_CRM_BASELINE",
+    provider_profile_url: str = PROFILE_B,
+) -> dict[str, Any]:
+    baseline_date = date(2026, 9, 27)
+    person = "Legacy Person"
+    prospect = {
+        "id": "legacy-b",
+        "linkedin_url": "legacy.person@example.com",
+        "attributes": {
+            "Person": person,
+            "Invite Sent Date": baseline_date.isoformat(),
+            "LinkedIn URL": "legacy.person@example.com",
+        },
+    }
+    baseline_event = {
+        "id": "legacy-send-b",
+        "source": event_source,
+        "event_type": "LINKEDIN_INVITE_SENT",
+        "prospect_id": "legacy-b",
+        "occurred_at": f"{baseline_date.isoformat()}T00:00:00Z",
+        "payload": {},
+    }
+    provider_date = datetime.combine(baseline_date + timedelta(days=provider_offset_days), datetime.min.time(), tzinfo=UTC)
+    provider_row = {
+        "Direction": "OUTGOING",
+        "To": person,
+        "inviteeProfileUrl": provider_profile_url,
+        "Sent At": provider_timestamp(provider_date),
+    }
+    return source_export(
+        invitations=provider_rows if provider_rows is not None else [provider_row],
+        prospects=[prospect_row(PROFILE_A, "tracked-a"), prospect],
+        events=events if events is not None else [baseline_event],
+    )
+
+
+def legacy_employers(*profiles: str) -> dict[str, Any]:
+    return {
+        profile_url: {"company_id": "co-a", "citations": [citation(f"employer-{index}")]}
+        for index, profile_url in enumerate((PROFILE_A, *profiles))
+    }
 
 
 def run(source: dict[str, Any], qualification_data: dict[str, Any], *, cap_scope: str = "all_history") -> dict[str, Any]:
@@ -358,6 +406,247 @@ def test_current_employer_owns_all_historical_invitation_dates() -> None:
     assert result["status"] == "ready"
     assert result["company_usage"]["co-a"]["recorded"] == 0
     assert result["company_usage"]["co-b"]["recorded"] == 1
+
+
+@pytest.mark.parametrize("provider_offset_days", [0, -1])
+def test_legacy_baseline_reconciles_unique_provider_identity(provider_offset_days: int) -> None:
+    result = run(
+        legacy_baseline_source(provider_offset_days=provider_offset_days),
+        qualification(current_employers=legacy_employers(PROFILE_B)),
+    )
+    assert result["status"] == "ready"
+    assert result["research_queue"] == []
+    assert result["company_usage"]["co-a"]["recorded"] == 1
+    assert [item["profile_url"] for item in result["invitations"]] == [PROFILE_A]
+    evidence = result["company_usage"]["co-a"]["evidence"]
+    assert {item["source_ref"] for item in evidence} == {
+        "snapshots.INVITATIONS.rows[0]",
+        "events.rows[0]",
+        "prospects.rows[1]",
+    }
+    assert {item["profile_url"] for item in evidence} == {PROFILE_B}
+
+
+def test_legacy_baseline_rejects_ambiguous_normalized_name_collision() -> None:
+    rows = [
+        {
+            "Direction": "OUTGOING",
+            "To": " Legacy   Person ",
+            "inviteeProfileUrl": PROFILE_B,
+            "Sent At": "9/27/26, 2:20 PM",
+        },
+        {
+            "Direction": "OUTGOING",
+            "To": "legacy person",
+            "inviteeProfileUrl": PROFILE_C,
+            "Sent At": "9/27/26, 3:20 PM",
+        },
+    ]
+    result = run(
+        legacy_baseline_source(provider_rows=rows),
+        qualification(current_employers=legacy_employers(PROFILE_B, PROFILE_C)),
+    )
+    unresolved = [item for item in result["research_queue"] if item["reason"] == "unsupported_historical_profile_url"]
+    assert {item["source_ref"] for item in unresolved} == {"events.rows[0]", "prospects.rows[1]"}
+
+
+def test_legacy_baseline_rejects_multiple_baseline_events() -> None:
+    first = {
+        "id": "legacy-send-b-1",
+        "source": "GOOGLE_SHEETS_CRM_BASELINE",
+        "event_type": "LINKEDIN_INVITE_SENT",
+        "prospect_id": "legacy-b",
+        "occurred_at": "2026-09-27T00:00:00Z",
+        "payload": {},
+    }
+    second = {**first, "id": "legacy-send-b-2"}
+    result = run(
+        legacy_baseline_source(events=[first, second]),
+        qualification(current_employers=legacy_employers(PROFILE_B)),
+    )
+    unresolved = [item for item in result["research_queue"] if item["reason"] == "unsupported_historical_profile_url"]
+    assert {item["source_ref"] for item in unresolved} == {
+        "events.rows[0]",
+        "events.rows[1]",
+        "prospects.rows[1]",
+    }
+
+
+def test_legacy_baseline_rejects_non_baseline_event_source() -> None:
+    result = run(
+        legacy_baseline_source(event_source="CRM"),
+        qualification(current_employers=legacy_employers(PROFILE_B)),
+    )
+    unresolved = [item for item in result["research_queue"] if item["reason"] == "unsupported_historical_profile_url"]
+    assert {item["source_ref"] for item in unresolved} == {"events.rows[0]", "prospects.rows[1]"}
+
+
+@pytest.mark.parametrize("provider_offset_days", [1, -2])
+def test_legacy_baseline_rejects_provider_date_outside_allowed_window(provider_offset_days: int) -> None:
+    result = run(
+        legacy_baseline_source(provider_offset_days=provider_offset_days),
+        qualification(current_employers=legacy_employers(PROFILE_B)),
+    )
+    unresolved = [item for item in result["research_queue"] if item["reason"] == "unsupported_historical_profile_url"]
+    assert {item["source_ref"] for item in unresolved} == {"events.rows[0]", "prospects.rows[1]"}
+
+
+def test_legacy_baseline_preserves_invalid_provider_url_strictness() -> None:
+    result = run(
+        legacy_baseline_source(provider_profile_url="https://linkedin.com.evil.test/in/legacy-person"),
+        qualification(current_employers=legacy_employers(PROFILE_B)),
+    )
+    unresolved = [item for item in result["research_queue"] if item["reason"] == "unsupported_historical_profile_url"]
+    assert {item["source_ref"] for item in unresolved} == {
+        "snapshots.INVITATIONS.rows[0]",
+        "events.rows[0]",
+        "prospects.rows[1]",
+    }
+
+
+@pytest.mark.parametrize("matches", [True, False])
+def test_legacy_baseline_unicode_name_keeps_punctuation(matches: bool) -> None:
+    source = legacy_baseline_source()
+    source["prospects"]["rows"][1]["attributes"]["Person"] = "  ＳＴＲＡＳＳＥ\u00a0 O’Neil-Smith  "
+    name = "straße o’neil-smith" if matches else "straße oneil smith"
+    for rows in (source["snapshots"]["INVITATIONS"]["rows"], source["snapshots"]["INVITATIONS"]["raw_elements"][0]["snapshotData"]):
+        rows[0]["To"] = name
+    result = run(source, qualification(current_employers=legacy_employers(PROFILE_B)))
+    assert result["status"] == ("ready" if matches else "withheld_current_employer_assignments")
+    assert len(result["research_queue"]) == (0 if matches else 2)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("inviteeProfileUrl", "bad-url"),
+    ("Sent At", "bad-date"),
+    ("Sent At", "9/20/26, 2:20 PM"),
+])
+def test_legacy_baseline_malformed_same_name_row_still_collides(field: str, value: str) -> None:
+    source = legacy_baseline_source()
+    rows = source["snapshots"]["INVITATIONS"]["rows"]
+    duplicate = {**rows[0], "To": " legacy   PERSON ", "inviteeProfileUrl": PROFILE_C, field: value}
+    result = run(legacy_baseline_source(provider_rows=[rows[0], duplicate]), qualification(current_employers=legacy_employers(PROFILE_B, PROFILE_C)))
+    refs = {item["source_ref"] for item in result["research_queue"]}
+    assert {"events.rows[0]", "prospects.rows[1]"} <= refs
+    assert result["invitations"] == []
+
+
+@pytest.mark.parametrize("collision", ["name", "profile", "name-invalid-date"])
+def test_legacy_baseline_target_collisions_withhold_both(collision: str) -> None:
+    source = legacy_baseline_source()
+    prospect = deepcopy(source["prospects"]["rows"][1])
+    prospect["id"] = "legacy-c"
+    prospect["linkedin_url"] = "other@example.com"
+    if collision == "profile":
+        prospect["attributes"]["Person"] = "Other Person"
+        rows = source["snapshots"]["INVITATIONS"]["rows"]
+        rows.append({**rows[0], "To": "Other Person"})
+        source["snapshots"]["INVITATIONS"]["raw_elements"][0]["snapshotData"] = deepcopy(rows)
+    else:
+        prospect["attributes"]["Person"] = " LEGACY   person "
+    if collision == "name-invalid-date":
+        prospect["attributes"]["Invite Sent Date"] = "invalid"
+    source["prospects"]["rows"].append(prospect)
+    source["prospects"]["row_count"] += 1
+    event = {**deepcopy(source["events"]["rows"][0]), "id": "legacy-send-c", "prospect_id": "legacy-c"}
+    source["events"]["rows"].append(event)
+    source["events"]["row_count"] += 1
+    result = run(source, qualification(current_employers=legacy_employers(PROFILE_B)))
+    assert {item["source_ref"] for item in result["research_queue"]} == {
+        "events.rows[0]", "events.rows[1]", "prospects.rows[1]", "prospects.rows[2]",
+    }
+    assert result["invitations"] == []
+
+
+@pytest.mark.parametrize("date_kind", ["disagree", "missing", "invalid", "crm-conflict"])
+def test_legacy_baseline_requires_agreeing_event_and_crm_date(date_kind: str) -> None:
+    source = legacy_baseline_source()
+    event = source["events"]["rows"][0]
+    if date_kind == "crm-conflict":
+        source["prospects"]["rows"][1]["attributes"]["invite_sent_date"] = "2026-09-26"
+    else:
+        event["occurred_at"] = {"disagree": "2026-09-26T00:00:00Z", "missing": None, "invalid": "bad-date"}[date_kind]
+    result = run(source, qualification(current_employers=legacy_employers(PROFILE_B)))
+    assert {item["source_ref"] for item in result["research_queue"]} == {"events.rows[0]", "prospects.rows[1]"}
+
+
+@pytest.mark.parametrize("event_type,source_name", [
+    ("LINKEDIN_INVITE_SENT", "CRM"),
+    ("LINKEDIN_INVITATION_HISTORY_FOUND", "GOOGLE_SHEETS_CRM_BASELINE"),
+])
+def test_legacy_baseline_unrelated_invitation_event_does_not_inherit_binding(event_type: str, source_name: str) -> None:
+    source = legacy_baseline_source()
+    event = {**source["events"]["rows"][0], "id": "unrelated-send", "event_type": event_type, "source": source_name}
+    source["events"]["rows"].append(event)
+    source["events"]["row_count"] += 1
+    result = run(source, qualification(current_employers=legacy_employers(PROFILE_B)))
+    assert {item["source_ref"] for item in result["research_queue"]} == {"events.rows[1]"}
+    assert {item["source_ref"] for item in result["company_usage"]["co-a"]["evidence"]} == {
+        "snapshots.INVITATIONS.rows[0]", "events.rows[0]", "prospects.rows[1]",
+    }
+    assert result["invitations"] == []
+    assert result["company_usage"]["co-a"]["recorded"] is None
+
+
+def test_legacy_baseline_preserves_audit_and_input_immutability() -> None:
+    source = legacy_baseline_source()
+    source["events"]["rows"][0]["payload"] = {"timestamp_semantics": "actual", "timestamp_precision": "date"}
+    data = qualification(current_employers=legacy_employers(PROFILE_B))
+    original_source, original_data = deepcopy(source), deepcopy(data)
+    unmatched = deepcopy(source)
+    for rows in (unmatched["snapshots"]["INVITATIONS"]["rows"], unmatched["snapshots"]["INVITATIONS"]["raw_elements"][0]["snapshotData"]):
+        rows[0]["To"] = "Unrelated Person"
+    before = run(unmatched, data)
+    result = run(source, data)
+    assert result["status"] == "ready"
+    evidence = {item["source_ref"]: item for item in result["company_usage"]["co-a"]["evidence"]}
+    for item in before["research_queue"]:
+        assert evidence[item["source_ref"]] == {
+            key: value for key, value in {**item, "profile_url": PROFILE_B}.items()
+            if key not in {"opaque_recipient_id", "reason"}
+        }
+    assert source == original_source
+    assert data == original_data
+    assert run(source, data)["output_digest"] == result["output_digest"]
+
+
+def test_legacy_baseline_without_employer_still_withholds() -> None:
+    result = run(legacy_baseline_source(), qualification())
+    assert result["status"] == "withheld_current_employer_assignments"
+    assert {item["reason"] for item in result["research_queue"]} == {"current_employer_missing"}
+    assert {item["source_ref"] for item in result["research_queue"]} == {
+        "snapshots.INVITATIONS.rows[0]", "events.rows[0]", "prospects.rows[1]",
+    }
+    assert {item["profile_url"] for item in result["research_queue"]} == {PROFILE_B}
+    assert all(item["recorded"] is None for item in result["company_usage"].values())
+    assert result["invitations"] == []
+
+
+def test_legacy_baseline_private_cli_happy_case(tmp_path: Path) -> None:
+    source_path, qualification_path = tmp_path / "source.json", tmp_path / "qualification.json"
+    source_path.write_text(json.dumps(legacy_baseline_source(provider_offset_days=-1)), encoding="utf-8")
+    qualification_path.write_text(json.dumps(qualification(current_employers=legacy_employers(PROFILE_B))), encoding="utf-8")
+    source_path.chmod(0o600)
+    qualification_path.chmod(0o600)
+    output = tmp_path / "report"
+    process = subprocess.run([
+        sys.executable, str(ROOT / "scripts" / "build_invitation_shortlist.py"),
+        "--source", str(source_path), "--qualification", str(qualification_path),
+        "--output-dir", str(output), "--cap-scope", "all_history", "--now", NOW.isoformat(),
+    ], cwd=ROOT, capture_output=True, text=True, check=False)
+    assert process.returncode == 0
+    assert process.stdout.strip() == "invitation shortlist: report written"
+    assert process.stderr == ""
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
+    for name in ("invitation-shortlist.json", "invitation-shortlist.md"):
+        assert stat.S_IMODE((output / name).stat().st_mode) == 0o600
+    result = json.loads((output / "invitation-shortlist.json").read_text(encoding="utf-8"))
+    assert result["status"] == "ready"
+    assert result["company_usage"]["co-a"]["recorded"] == 1
+    assert result["research_queue"] == []
+    assert [item["profile_url"] for item in result["invitations"]] == [PROFILE_A]
+    assert "Status: ready" in (output / "invitation-shortlist.md").read_text(encoding="utf-8")
+    assert "event_plan" not in result
 
 
 def test_connection_evidence_excludes_candidate_but_does_not_consume_invite_cap() -> None:

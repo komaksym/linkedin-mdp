@@ -6,9 +6,10 @@ import hashlib
 import json
 import math
 import time
+import unicodedata
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
@@ -777,6 +778,85 @@ def _make_markdown(result: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _legacy_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return " ".join(unicodedata.normalize("NFKC", value).split()).casefold() or None
+
+
+def _reconcile_legacy_history(
+    history: Sequence[HistoryEvidence],
+    invitations: Sequence[Mapping[str, Any]],
+    prospects: Sequence[Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+) -> list[HistoryEvidence]:
+    by_ref = {item.source_ref: item for item in history}
+    baseline_by_id: dict[str, list[int]] = defaultdict(list)
+    for index, row in enumerate(events):
+        prospect_id = row.get("prospect_id")
+        if (
+            row.get("source") == "GOOGLE_SHEETS_CRM_BASELINE"
+            and row.get("event_type") == "LINKEDIN_INVITE_SENT"
+            and isinstance(prospect_id, str)
+        ):
+            baseline_by_id[prospect_id].append(index)
+
+    outgoing_by_name: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for index, row in enumerate(invitations):
+        if f"snapshots.INVITATIONS.rows[{index}]" not in by_ref:
+            continue
+        name = _legacy_name(row.get("To"))
+        if name:
+            outgoing_by_name[name].append(row)
+
+    target_names: dict[str, str] = {}
+    for index, row in enumerate(prospects):
+        source_ref = f"prospects.rows[{index}]"
+        crm = by_ref.get(source_ref)
+        if crm is None or crm.profile_url is not None or row.get("id") not in baseline_by_id:
+            continue
+        attributes = _attributes(row)
+        name = _legacy_name(attributes.get("Person")) or _legacy_name(attributes.get("Name"))
+        if name:
+            target_names[source_ref] = name
+    name_counts = Counter(target_names.values())
+    matches: dict[str, str] = {}
+    for source_ref, name in target_names.items():
+        rows = outgoing_by_name[name]
+        if len(rows) == 1:
+            profile_url = normalize_profile_url(rows[0].get("inviteeProfileUrl"))
+            if profile_url:
+                matches[source_ref] = profile_url
+    profile_counts = Counter(matches.values())
+
+    bindings: dict[str, str] = {}
+    for index, row in enumerate(prospects):
+        source_ref = f"prospects.rows[{index}]"
+        profile_url = matches.get(source_ref)
+        if profile_url is None or name_counts[target_names[source_ref]] != 1 or profile_counts[profile_url] != 1:
+            continue
+        indices = baseline_by_id[str(row["id"])]
+        if len(indices) != 1:
+            continue
+        event_ref = f"events.rows[{indices[0]}]"
+        event = by_ref.get(event_ref)
+        crm = by_ref[source_ref]
+        if event is None or event.profile_url is not None or crm.event_date is None:
+            continue
+        source_time = events[indices[0]].get("occurred_at")
+        if not isinstance(source_time, str) or _optional_timestamp(source_time) is None:
+            continue
+        baseline_date = datetime.fromisoformat(source_time.strip()).date()
+        if baseline_date != crm.event_date:
+            continue
+        provider_date = _provider_local_date(outgoing_by_name[target_names[source_ref]][0].get("Sent At"))
+        if provider_date not in {baseline_date, baseline_date - timedelta(days=1)}:
+            continue
+        bindings[source_ref] = profile_url
+        bindings[event_ref] = profile_url
+    return [replace(item, profile_url=bindings[item.source_ref]) if item.source_ref in bindings else item for item in history]
+
+
 def _source_history(invitations: Sequence[Mapping[str, Any]], connections: Sequence[Mapping[str, Any]], prospects: Sequence[Mapping[str, Any]], events: Sequence[Mapping[str, Any]]) -> tuple[list[HistoryEvidence], set[str], set[str], list[HistoryEvidence]]:
     """Combine provider, CRM, and event positives into exact exclusions and cap evidence."""
     profile_by_id = {
@@ -788,7 +868,8 @@ def _source_history(invitations: Sequence[Mapping[str, Any]], connections: Seque
     provider_events, connected_profiles, unresolved_connections = _provider_history(invitations, connections)
     event_history = _event_history(events, profile_by_id)
     crm_history = _crm_history(prospects)
-    historical_profiles = {item.profile_url for item in [*provider_events, *event_history, *crm_history] if item.profile_url}
+    history = _reconcile_legacy_history([*provider_events, *event_history, *crm_history], invitations, prospects, events)
+    historical_profiles = {item.profile_url for item in history if item.profile_url}
     for row in events:
         if row.get("event_type") not in _CONNECTION_EVENT_TYPES:
             continue
@@ -810,7 +891,7 @@ def _source_history(invitations: Sequence[Mapping[str, Any]], connections: Seque
             profile_url = profile_by_id.get(prospect_id) if isinstance(prospect_id, str) else None
             if profile_url:
                 sent_profiles.add(profile_url)
-    return [*provider_events, *event_history, *crm_history], connected_profiles, historical_profiles | sent_profiles, unresolved_connections
+    return history, connected_profiles, historical_profiles | sent_profiles, unresolved_connections
 
 
 def build_invitation_shortlist(

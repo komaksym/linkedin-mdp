@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 88,
+  "scenario_count": 113,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -24,7 +24,13 @@
     "distinct invalid employer identity keys collapsed without source pointers",
     "unpaired Unicode employer keys failed before unresolved queue recording",
     "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
-    "candidate qualification citation attested a different profile"
+    "candidate qualification citation attested a different profile",
+    "unique legacy baseline provider identity left unsupported",
+    "Unicode-normalized legacy name left unsupported",
+    "unrelated invitation event prevented the selected baseline binding",
+    "legacy audit evidence remained unresolved despite a unique provider match",
+    "resolved legacy identity retained unsupported rather than missing-employer reasons",
+    "private legacy CLI happy case wrote a withheld report"
   ],
-  "artifact_digest": "2dabc51de56f7b9d802c8441f279d3d1239107f719426e0a5cafcf5e69afa59f"
+  "artifact_digest": "2922acbc5e96eb7c0af44a58998f35a19d092dfe4a37ef4681930d75a1f8709c"
 }

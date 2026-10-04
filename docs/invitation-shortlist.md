@@ -55,6 +55,14 @@ The JSON audit retains each source evidence ID, source row pointer, observed eve
 
 Provider `Sent At` values preserve the retained `M/D/YY, h:mm AM/PM` text and provider-local calendar date when parseable. The timezone remains unknown. Supabase event dates remain source audit metadata; observation or import time is never substituted for the provider date.
 
+## Legacy baseline reconciliation
+
+Unsupported CRM invitation history can bind to a canonical provider profile only when its prospect has exactly one `GOOGLE_SHEETS_CRM_BASELINE` / `LINKEDIN_INVITE_SENT` event. The CRM `Person` name (or `Name` when absent) uses Unicode NFKC, whitespace collapse, and casefold. Punctuation remains significant. That name must match exactly one outgoing invitation row across the complete history, counting rows with invalid URLs or dates as collisions. Incoming invitations do not participate.
+
+The matching row must have a valid canonical LinkedIn profile URL and a provider calendar date equal to the agreeing CRM/event baseline date or exactly one day earlier. Missing, invalid, conflicting, or disagreeing baseline dates leave the history unresolved. Target legacy prospects must have distinct normalized names and distinct matched canonical profiles; collisions remain unresolved even when another target fails a date check.
+
+The overlay changes only `profile_url` on the selected baseline event evidence and corresponding unsupported CRM send evidence after ordinary history extraction. It preserves evidence IDs, row pointers, source timestamps, dates, precision, and timezone metadata. The general prospect identity index and other events retain their existing exact identity rules. Provider, CRM, and baseline evidence then count once per canonical person. A resolved legacy identity still needs valid current-employer evidence; otherwise capacity and recommendations remain withheld.
+
 ## Ranking and output
 
 The priority heuristic is versioned as `invitation-priority-v1`. It awards up to 4 points for observed exact-person activity, 3 for mutual connections, 2 for connection count, and 1 for a profile photo. Activity must be at most 30 days old. Other ranking signals must be at most 90 days old. Numeric inputs are capped at 20 mutual connections and 500 total connections for scoring. Missing or stale signals stay unknown and do not produce an all-unknown zero score. The score is a sorting aid, not an acceptance probability. Stable ties use the canonical profile URL. Eligibility and remaining lifetime company slots apply before the report selects at most 25 rows.

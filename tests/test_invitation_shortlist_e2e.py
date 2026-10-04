@@ -39,6 +39,9 @@ def test_invitation_shortlist_e2e() -> None:
     )
     assert collection.returncode == 0, collection.stdout + collection.stderr
     assert "test_candidate_citations_must_attest_exact_profile" in collection.stdout
+    assert "test_legacy_baseline_private_cli_happy_case" in collection.stdout
+    assert "test_legacy_baseline_malformed_same_name_row_still_collides" in collection.stdout
+    assert "test_legacy_baseline_target_collisions_withhold_both" in collection.stdout
 
     body = {
         "schema_version": 1,
@@ -67,6 +70,12 @@ def test_invitation_shortlist_e2e() -> None:
             "unpaired Unicode employer keys failed before unresolved queue recording",
             "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
             "candidate qualification citation attested a different profile",
+            "unique legacy baseline provider identity left unsupported",
+            "Unicode-normalized legacy name left unsupported",
+            "unrelated invitation event prevented the selected baseline binding",
+            "legacy audit evidence remained unresolved despite a unique provider match",
+            "resolved legacy identity retained unsupported rather than missing-employer reasons",
+            "private legacy CLI happy case wrote a withheld report",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

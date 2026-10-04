@@ -1,5 +1,25 @@
 # Implementation plans
 
+## Three-doc private report publication
+
+Summary: make the existing private Google Docs for connections, first-time DMs, and follow-ups durable publication targets. Reuse one marker-safe Google Docs boundary, keep the connections report contract intact, and keep reply/follow-up text generation out of scope.
+
+Milestones:
+
+1. Ground the existing connections publisher and private-DM planner, then compare two small publication shapes.
+2. Add an E2E contract that fails until first-DM and follow-up reports publish through the same owner-only marker-safe boundary.
+3. Implement a generic text publication method plus thin first-DM/follow-up render and CLI entry points. Keep one publisher instance per target document ID.
+4. Run narrow E2E checks, then lint, typecheck, full tests, and build. Publish to all three live Docs through the real path and read each back.
+
+Throughput checkpoint:
+
+- Blocking first steps. Confirm the current publisher boundary, DM report shape, and existing live Doc IDs before file-writing fan-out.
+- Independent workstreams. Architecture review and E2E contract review run in parallel. One isolated implementation owner edits the feature worktree after the design is selected.
+- Shared mutable state. Only the implementation owner writes the feature worktree. Live Google writes run after local verification and stay serialized per document.
+- Smallest safe decomposition. One generic `publish_text` boundary, existing `publish(ReportResult)` delegates to it, and two thin DM report entry points. No schema, Supabase, LinkedIn send, or new production dependency changes.
+
+Data shape: a report destination is one `GoogleDocConfig` containing one `document_id`; a rendered report is one complete managed-region string. The publisher owns OAuth, privacy, marker, revision, and atomic replacement invariants. Report-kind code owns only rendering and destination selection.
+
 ## Invitation shortlist
 
 Summary: build one deterministic, private invitation shortlist from the approved live source export and explicitly attested current qualification evidence. Keep replies, first-DM research orchestration and publication in subsequent slices.
@@ -194,3 +214,25 @@ Red-first E2E against `19a769a` produced five expected failures while the prior 
 PR10 fresh review audit corrections: six invalid canonical-alias scenarios and one distinct unsupported-key queue scenario failed before production fixes. Queued profiles no longer retain resolved current employer assignments or capacity attribution. Every employer queue entry retains a stable opaque key ID and source pointer.82 scenario matrix plus wrapper,22 full-suite checks, scoped strict Ruff,12-file mypy and package builds pass. No report publication or database writes occurred.
 
 PR10 Unicode repair verification before publication: 84 scenarios plus wrapper, 22 full-suite checks, strict scoped Ruff, 12-file mypy and builds passed before the usage pause. Pending diff inspected on resume; no source behavior changed since that validation. Separate synthetic CLI proof and independent review requested. Fixed fresh CodeRabbit wording finding by spacing adjacent counts in the matrix record.
+
+## PR10 campaign-led invitation contract amendment
+
+Summary: Supabase is the PVF/RFQ campaign ledger. The shortlist selects up to 25 eligible campaign prospects from the complete saved Supabase prospect snapshot. Supabase `Priority` is the primary ordering key.
+
+This section supersedes the PR10 current-employer and global all-history shortlist contract above. Those paragraphs remain only as historical record. `cap_scope=campaign` is the active policy. `all_history` is obsolete and must be rejected.
+
+The retained real-data source is the saved Supabase snapshot collected on 2026-10-03. Verification must use that saved snapshot rather than a live Supabase query. The retained qualification file is optional intermediate enrichment. `qualification.candidates` cannot define campaign membership or override the Supabase company, status, action state, or `Priority`.
+
+Supabase campaign rows define the candidate population, company, status, action state, and `Priority` values `P1`, `P2`, `P3`, `P4`, `P5`, and `LEGACY`. An MDP stored event applies only when its canonical LinkedIn URL exactly matches the prospect's current canonical campaign URL. A matching `prospect_id` does not rescue an MDP URL mismatch. An actual non-MDP Supabase send event can bind by `prospect_id`. Unrelated or unmatched MDP history cannot consume capacity or exclude a campaign prospect. An exact-matched MDP invitation with unknown direction withholds only that matched person. It does not establish a confirmed send or make company capacity unknown by itself.
+
+The three-per-company cap counts only distinct campaign profiles with confirmed campaign sends and uses the campaign prospect's Supabase company. Multiple evidence rows for one campaign profile count once. Missing or conflicting data on an unsent campaign row withholds only that prospect and does not consume capacity. A confirmed campaign send with ambiguous company attribution may conservatively make the affected company's capacity unknown.
+
+Supabase `Priority` sorts first in this order: `P1`, `P2`, `P3`, `P4`, `P5`, `LEGACY`. Optional qualification `rank_factors` can break ties for an exact matching campaign profile. Missing or unusable enrichment leaves the campaign prospect eligible with an unknown score.
+
+The final repaired checkpoint has 125 matrix cases, one wrapper, and 33 repository tests passing. Scoped Ruff and mypy pass. A fresh independent build produces the wheel and source distribution. The retained CLI proof at `/Users/koval/dev/linkedin-automation/.private/action-report-evidence-20261003/campaign-led-20261004/run-x51qitkb/verification.json` selects 25 P1 members in each plain, repeated, and enriched run. Current production hashes match that proof. It verifies 376 eligible profiles, 131 available slots, 1,575 unrelated MDP invitations ignored, private modes, repeated output, and unchanged inputs.
+
+The original baseline recorded 40 Ruff diagnostics and two mypy errors. A comparable audit uses Ruff 0.13.2 with the original diagnostic rule codes and mypy 1.11.2 with the same runtime interpreter on baseline and current files. Ruff reports the same 40 filename, line, and rule tuples. Mypy reports `prospect_report/engine.py:167,198,256` on both. The baseline also reports the old shortlist error at line 284. The engine file is unchanged. The third engine diagnostic is inherited, not a new regression.
+
+The repair transcript `01a1076c-935d-71e2-852f-ae1f8b9f8aa4`, call `call_7CaF_3V9-qXqDxLT_ZHQVkt5vfITnUGq`, records six failing cases before production edits. They cover Status, Next Action, unknown provider direction, unsent company alias conflicts, and both stored MDP URL rebound paths. The actual company and URL failures return an empty shortlist where PROFILE_B is required. The expanded narrow repair check then passes 12 cases.
+
+Completion is verified for the campaign-led invitation contract. The final regression set covers incoming and unknown-direction stored MDP invitations, exact stored/current URL matching for MDP suppression, and non-MDP campaign events that bind by `prospect_id`. The completion matrix and replay probes are in `/tmp/linkedin-campaign-verification/completion-audit.json`. Broad Ruff and mypy findings are inherited from the comparable baseline. This verification uses the retained Supabase snapshot. It does not query live Supabase, send outreach, or write campaign state.

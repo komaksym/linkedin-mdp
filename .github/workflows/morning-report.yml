@@ -32,6 +32,7 @@ jobs:
       - name: Install reporting runtime
         run: uv sync --no-dev
 
+      # DM publication waits for a durable private-dm-actions.json producer on this runner.
       - name: Update private Google Doc
         env:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}

@@ -6,8 +6,12 @@ on:
       - '.github/workflows/report-tests.yml'
       - '.github/workflows/morning-report.yml'
       - '.github/workflows/sync-connections.yml'
+      - 'docs/google-docs-report.md'
+      - 'docs/private-dm-actions.md'
       - 'src/**'
       - 'scripts/report_connections_doc.py'
+      - 'scripts/build_private_dm_actions.py'
+      - 'scripts/publish_private_dm_docs.py'
       - 'tests/**'
       - 'pyproject.toml'
   workflow_dispatch:
@@ -32,5 +36,7 @@ jobs:
         run: uv sync --extra dev
       - name: Verify report HTTP boundaries with synthetic data
         run: PYTHONPATH=src:. .venv/bin/python tests/e2e_doc_report.py --evidence report-evidence.json
+      - name: Verify private DM Doc HTTP boundaries with synthetic data
+        run: PYTHONPATH=src:. .venv/bin/python tests/e2e_private_dm_doc_report.py --evidence private-dm-doc-report-evidence.json
       - name: Verify existing reconciliation behavior
         run: .venv/bin/python -m pytest -q

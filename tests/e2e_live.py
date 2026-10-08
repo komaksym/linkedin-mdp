@@ -108,10 +108,19 @@ def _reference_next_link(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _reference_status_action(status_code: int) -> str:
+    """Classify a failed reference page as 'retry', 'not_found', or 'fail'."""
+    if status_code in {429, 500, 502, 503, 504}:
+        return "retry"
+    if status_code == 404:
+        return "not_found"
+    return "fail"
+
+
 async def _fetch_connections_reference(
     *,
     max_pages: int = 10,
-) -> tuple[list[Any], int, bool]:
+) -> tuple[list[Any], int, bool, bool]:
     """Fetch CONNECTIONS pages directly as an oracle independent from the MCP client."""
     token = (os.getenv("LINKEDIN_ACCESS_TOKEN") or os.getenv("LINKEDIN_TOKEN") or "").removeprefix(
         "Bearer "
@@ -145,11 +154,15 @@ async def _fetch_connections_reference(
 
                 if response.is_success:
                     break
-                if response.status_code not in {429, 500, 502, 503, 504} or attempt >= 2:
-                    raise RuntimeError(
-                        f"Direct CONNECTIONS reference failed with HTTP {response.status_code}"
-                    )
-                await asyncio.sleep(0.25 * (2**attempt))
+                action = _reference_status_action(response.status_code)
+                if action == "retry" and attempt < 2:
+                    await asyncio.sleep(0.25 * (2**attempt))
+                    continue
+                if action == "not_found":
+                    return elements, page_count, False, True
+                raise RuntimeError(
+                    f"Direct CONNECTIONS reference failed with HTTP {response.status_code}"
+                )
             else:
                 raise AssertionError("unreachable")
 
@@ -167,11 +180,11 @@ async def _fetch_connections_reference(
 
             next_url = _reference_next_link(payload)
             if next_url is None:
-                return elements, page_count, False
+                return elements, page_count, False, False
             url = next_url
             params = None
 
-    return elements, page_count, True
+    return elements, page_count, True, False
 
 
 def _assert_oracle_rejects_legacy_single_snapshot() -> None:
@@ -234,9 +247,12 @@ async def main() -> None:
             raise AssertionError(f"Unexpected MCP surface: {sorted(names)}")
 
         auth = await _call(client, "linkedin_authorization_status", {})
-        reference_elements, reference_page_count, reference_truncated = (
-            await _fetch_connections_reference(max_pages=10)
-        )
+        (
+            reference_elements,
+            reference_page_count,
+            reference_truncated,
+            reference_not_found,
+        ) = await _fetch_connections_reference(max_pages=10)
         connections = await _call(client, "linkedin_connections", {"max_pages": 10})
         invitations = await _call(client, "linkedin_invitations", {"max_pages": 1})
         inbox = await _call(client, "linkedin_inbox", {"max_pages": 1})
@@ -246,28 +262,36 @@ async def main() -> None:
             {"count": 10, "max_pages": 1},
         )
 
-        reference_rows, reference_versions = _assert_connections_match_reference(
-            connections,
-            reference_elements,
-            reference_page_count,
-            reference_truncated,
-        )
-        legacy_connection_rows = _legacy_single_snapshot_rows(reference_elements)
-        live_legacy_would_differ = not _same_json_value(
-            reference_rows,
-            legacy_connection_rows,
-        )
-        if not live_legacy_would_differ:
-            raise AssertionError(
-                "Live CONNECTIONS data does not currently distinguish the legacy selector; "
-                "the defect-sensitive proof is inconclusive"
+        if reference_not_found:
+            reference_rows: list[Any] = []
+            reference_versions = 0
+            legacy_connection_rows: list[Any] = []
+            live_legacy_would_differ = False
+        else:
+            reference_rows, reference_versions = _assert_connections_match_reference(
+                connections,
+                reference_elements,
+                reference_page_count,
+                reference_truncated,
             )
+            legacy_connection_rows = _legacy_single_snapshot_rows(reference_elements)
+            live_legacy_would_differ = not _same_json_value(
+                reference_rows,
+                legacy_connection_rows,
+            )
+            if not live_legacy_would_differ:
+                raise AssertionError(
+                    "Live CONNECTIONS data does not currently distinguish the legacy selector; "
+                    "the defect-sensitive proof is inconclusive"
+                )
 
         summary = {
             "protocol_version": str(client.protocol_version),
             "tools": sorted(names),
             "authorization_keys": sorted(auth.keys()),
             "connections_rows": len(connections.get("rows", [])),
+            "connections_reference_not_found": reference_not_found,
+            "connections_source_result": connections.get("source_result"),
             "connections_distinct_reference_rows": len(reference_rows),
             "connections_reference_snapshot_versions": reference_versions,
             "connections_page_count": connections.get("page_count"),

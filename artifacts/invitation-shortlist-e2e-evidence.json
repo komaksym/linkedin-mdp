@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scenario_count": 113,
+  "scenario_count": 122,
   "all_scenarios_passed": true,
   "red_first_failures_reproduced": [
     "provider-local invitation dates lost to ISO-only parsing",
@@ -30,7 +30,13 @@
     "unrelated invitation event prevented the selected baseline binding",
     "legacy audit evidence remained unresolved despite a unique provider match",
     "resolved legacy identity retained unsupported rather than missing-employer reasons",
-    "private legacy CLI happy case wrote a withheld report"
+    "private legacy CLI happy case wrote a withheld report",
+    "report omitted a valid exact-profile prospect creation timestamp",
+    "invalid or future creation timestamps were not withheld as unknown",
+    "creation timestamp or qualification spoof changed ranking or membership",
+    "private Markdown omitted creation-time provenance",
+    "UTC conversion overflow aborted timestamp enrichment",
+    "private Markdown omitted the creation-time prospect ID"
   ],
-  "artifact_digest": "2922acbc5e96eb7c0af44a58998f35a19d092dfe4a37ef4681930d75a1f8709c"
+  "artifact_digest": "570d2a1bfe3afd510bfae8f80d75fc074920b56d8532d97bf741893c48adbc09"
 }

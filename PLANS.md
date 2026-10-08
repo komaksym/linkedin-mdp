@@ -32,6 +32,25 @@ The live verification utility compares complete stored payloads and all event ti
 
 Applied principles: Model the Domain keeps event bodies in `InboxSyncPlan` and sanitized counts in `InboxSyncSummary`. Sequence Work into Verifiable Units makes inbox evidence the first slice before ranking, research, and action publication.
 
+### Prospect date-added report enrichment
+
+Summary: expose the existing Supabase prospect `created_at` value as report-only `date_added`. This is the database row creation time; it is not a LinkedIn connection or acceptance date. It must not affect qualification, exclusions, rank, or company capacity.
+
+Failure modes to reject before implementation:
+
+- Missing `created_at`, null, wrong-type, malformed, or timezone-naive values must remain unknown, never be replaced with collection time or another date.
+- A future timestamp must remain unknown rather than being rendered as a valid creation date.
+- A timestamp string with a valid timezone and no future instant must be preserved byte-for-byte in JSON and Markdown.
+- Qualification input must not spoof or override the source prospect timestamp.
+- Profile aliases must join through the same canonical profile normalizer, while zero or multiple source rows must not attach an ambiguous prospect ID or pointer.
+- One uniquely matched row with invalid/missing time must retain its stable prospect ID and source pointer with a fixed reason, without leaking the invalid raw value.
+- Adding or removing `created_at` must not change shortlist membership, ranking, exclusion counts, or company-cap results.
+- The private CLI must still emit only fixed stdout and create only private JSON/Markdown files whose date-added values and source pointers match the pure result.
+
+Implementation is one late output-enrichment helper over validated source prospects, preserving existing qualification and ranking decisions. Red-first verification must use the existing whole-CLI E2E matrix before production edits; no schema, workflow, live source call, or new dependency is needed.
+
+Verification, 2026-10-02: all eight new date-added behavior assertions failed against the unchanged implementation; 83 of the existing 84 matrix scenarios remained green. The corrected implementation passes all 91 matrix scenarios, the CLI artifact wrapper, and the full 22-check repository suite. The selected row preserves an exact offset/fraction timestamp and source pointer in JSON/Markdown, while missing, invalid, naive, or future timestamps remain unknown without affecting membership or ranking. Scoped Ruff and strict mypy on the touched module pass; full-source mypy passes across nine modules. Sdist and wheel builds pass. An unfiltered E501 scan reports only pre-existing long lines outside the added sections. The generated artifact contains aggregate verdicts only.
+
 ## Google Docs morning report
 
 ### Contract
@@ -194,3 +213,5 @@ Red-first E2E against `19a769a` produced five expected failures while the prior 
 PR10 fresh review audit corrections: six invalid canonical-alias scenarios and one distinct unsupported-key queue scenario failed before production fixes. Queued profiles no longer retain resolved current employer assignments or capacity attribution. Every employer queue entry retains a stable opaque key ID and source pointer.82 scenario matrix plus wrapper,22 full-suite checks, scoped strict Ruff,12-file mypy and package builds pass. No report publication or database writes occurred.
 
 PR10 Unicode repair verification before publication: 84 scenarios plus wrapper, 22 full-suite checks, strict scoped Ruff, 12-file mypy and builds passed before the usage pause. Pending diff inspected on resume; no source behavior changed since that validation. Separate synthetic CLI proof and independent review requested. Fixed fresh CodeRabbit wording finding by spacing adjacent counts in the matrix record.
+
+PR12 review correction: two UTC conversion overflow boundaries and the Markdown prospect-ID provenance assertion failed before the fix (3 failed, 90 passed). The correction catches overflow as invalid_timestamp and prints the prospect ID beside the source pointer. All 93 E2E scenarios, the full 22-test suite, scoped Ruff, 9-file default source mypy and source/wheel builds pass. Independent read-only review found no actionable issue.

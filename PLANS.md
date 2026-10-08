@@ -1,5 +1,20 @@
 # Implementation plans
 
+## Private DM evidence and action report
+
+Summary: classify positive sent and received DM evidence once for reuse by the later actual-action sync, then build a read-only private report of manual reply and follow-up reminders and qualified researched first-DM drafts. Invitation notes, ambiguous history, and incomplete coverage remain explicit unknowns.
+
+- [x] Record the immutable evidence and report shapes, then write and run a red-first synthetic E2E failure matrix.
+- [x] Implement complete-source validation, conservative changelog-to-INBOX correlation, and pure whole-history report planning.
+- [x] Add an offline CLI that reads private files and writes mode-0700/0600 JSON and Markdown without provider or database clients.
+- [x] Validate the E2E artifact, full pytest suite, scoped Ruff, mypy, and sdist/wheel build; record limitations.
+
+The classifier returns tuples of verified DMs, uncertain observations, tainted threads, source pointers, and coverage state. The planner consumes that entire result. A verified DM needs a successful CREATE activity with consistent resource, owner, author, thread, content, timestamp, and one unique exact INBOX match. Typed invitation content overrides generic message fields. Read status defaults to unknown. First-DM policy uses an explicit exact-profile acceptance and US PVF qualification envelope plus saved exact-profile research; a 28-day consent changelog cannot prove lifetime absence. No schema, infrastructure, provider call, recommendation persistence, or send operation belongs to this slice.
+
+Throughput checkpoint: one owner edits the isolated branch in order; parent owns PR publication and visual. The test runner records only synthetic verdicts. The shared classifier is the future sync boundary; the report has no ability to apply events.
+
+Verification: 55 synthetic E2E verdicts and 23 repository tests pass. Scoped Ruff, full-source mypy across 10 modules, strict mypy on the new classifier, `git diff --check`, and both package builds pass in the declared isolated runtime. Red-first regressions cover malformed citation URLs, provider payloads, calendar-day connection proof, alias conflicts, and the client's valid empty-changelog watermark. The real retained changelog lacks acquisition metadata and the older source cache lacks current date-added projection; this slice makes no live action or draft eligibility claim from those files. The parent owns base update, infographic, and PR publication.
+
 ## Invitation shortlist
 
 Summary: build one deterministic, private invitation shortlist from the approved live source export and explicitly attested current qualification evidence. Keep replies, first-DM research orchestration and publication in subsequent slices.
@@ -215,3 +230,33 @@ PR10 fresh review audit corrections: six invalid canonical-alias scenarios and o
 PR10 Unicode repair verification before publication: 84 scenarios plus wrapper, 22 full-suite checks, strict scoped Ruff, 12-file mypy and builds passed before the usage pause. Pending diff inspected on resume; no source behavior changed since that validation. Separate synthetic CLI proof and independent review requested. Fixed fresh CodeRabbit wording finding by spacing adjacent counts in the matrix record.
 
 PR12 review correction: two UTC conversion overflow boundaries and the Markdown prospect-ID provenance assertion failed before the fix (3 failed, 90 passed). The correction catches overflow as invalid_timestamp and prints the prospect ID beside the source pointer. All 93 E2E scenarios, the full 22-test suite, scoped Ruff, 9-file default source mypy and source/wheel builds pass. Independent read-only review found no actionable issue.
+
+DM parent integration: rebased the unpublished branch onto PR12 correction56324af without shared-history rewriting. Added the inspected system infographic. The 55-scenario CLI artifact is synthetic; cached real changelog has no acquisition metadata, so no live action eligibility or final report publication is claimed.
+
+PR13 CodeRabbit corrections: reproduced unrelated group-thread reminder suppression and false opt-out reason before production edits. Attribute group uncertainty only to complete identifiable thread participants; malformed participant evidence remains global. Unknown policy opt-out state remains withheld under an explicit unverified-policy reason. Expanded61synthetic E2E,23fulltests,scopedRuff,10sourcefilemypy,sdist/wheel passed.
+
+PR13 attachment-only regression: typed MEDIA with exactly matching nonempty attachments and empty/omitted inbox CONTENT failed before production change. Preserve those positively correlated DMs; blank TEXT still unverified.64syntheticE2E,23fulltests,lint/types/builds pass.
+
+## DM connection coverage correction
+
+Summary: keep CONNECTIONS completeness and freshness gates limited to first-DM eligibility. Replies and follow-ups depend on verified message evidence, prospect coverage and opt-out state.
+
+1. Reproduce stale/incomplete CONNECTIONS suppression in the real report planner.
+2. Separate connection coverage from shared message/prospect gates.
+3. Run E2E, lint, typecheck, full tests and builds before publishing the correction to PR13.
+
+The stale and incomplete coverage regressions failed before the planner change. The corrected planner passes 72 synthetic DM scenarios plus 6 dedicated anonymous-timing scenarios and 23 full tests. Scoped Ruff and strict changed-file mypy pass; source/wheel builds pass. Full-source mypy still reports the unchanged inherited invitation_shortlist.py:276 Optional-key error; this correction does not alter that unrelated module. Historical identity bridging is excluded because it lacks a production source contract and rejects conflicting historical shapes incorrectly. No report eligibility or live publication is claimed.
+
+CodeRabbit also identified pytest rewriting the tracked uncertainty artifact. The narrow pytest run reproduced an mtime change before the wrapper correction; a temporary output path now preserves the tracked artifact. The direct E2E entry point still writes the repeatable committed artifact. Scoped lint and strict wrapper types pass. Proof is retained privately alongside this worktree.
+
+## Real provider connection-date correction
+
+Summary: the collected CONNECTIONS rows use English calendar dates such as 16 Sep 2026. The ISO-only first-DM parser rejects those valid provider dates. All15retained researched profiles have a unique connection row within30calendar days when the observed format is parsed. Add the observed English format without inventing timezone or acceptance instants, reject malformed dates, and validate before publication.
+
+## Calendar-day first-DM eligibility correction
+
+Summary: a uniquely matched provider CONNECTIONS calendar date establishes recent connection status without an invented acceptance instant. First reproduce the timestamp-only policy failure through the report entry point. Then keep any supplied acceptance timestamp as an optional consistency check, preserve all identity, message-history, qualification and opt-out gates, document the input contract, and validate the E2E artifact plus required checks.
+
+Red proof: provider_day_without_invented_acceptance_time fails before production changes.
+
+Validation:88synthetic DM scenarios including the real CLI without an acceptance instant,23full tests,scoped Ruff,strict three-file mypy,and source/wheel builds pass. Invalid supplied timestamps and mismatches remain withheld; missing timestamps use only the verified provider calendar day. Independent review agent hit its account limit before returning; no independent review is claimed. Root scoped review found no new comments/suppressions or unrelated code changes. Restore inherited inbox artifact after pytest before publication.

@@ -143,6 +143,7 @@ class LinkedInMDPClient:
             params,
             max_pages=max_pages,
             empty_on_404=False,
+            strict_envelope=True,
         )
         processed = [
             value
@@ -165,8 +166,9 @@ class LinkedInMDPClient:
         max_pages: int,
         empty_on_404: bool,
         strict_elements: bool = False,
+        strict_envelope: bool = False,
     ) -> PageResult:
-        """Fetch every page and optionally reject malformed snapshot envelopes."""
+        """Fetch every page and validate requested snapshot or source envelopes."""
         if not 1 <= max_pages <= 50:
             raise ValueError("max_pages must be between 1 and 50")
 
@@ -191,6 +193,8 @@ class LinkedInMDPClient:
                 raise
 
             current = payload.get("elements", [])
+            if strict_envelope and ("elements" not in payload or not isinstance(current, list)):
+                raise LinkedInAPIError(0, "malformed changelog elements list")
             if strict_elements and not isinstance(current, list):
                 raise LinkedInAPIError(0, "expected a snapshot elements list")
             if isinstance(current, list):
@@ -201,18 +205,22 @@ class LinkedInMDPClient:
                 self._validate_snapshot_paging(payload)
             pages += 1
 
-            next_url = self._next_link(payload, strict=strict_elements)
+            strict_pages = strict_elements or strict_envelope
+            page_context = "changelog" if strict_envelope else "snapshot"
+            next_url = self._next_link(payload, strict=strict_pages, context=page_context)
             if next_url is None:
                 return PageResult(elements=elements, page_count=pages, truncated=False)
-            if strict_elements:
+            if strict_pages:
                 parsed = urlparse(next_url)
                 if parsed.path != path:
-                    raise LinkedInAPIError(0, "snapshot next link changed endpoint")
+                    raise LinkedInAPIError(0, f"{page_context} next link changed endpoint")
                 next_params = parse_qs(parsed.query, keep_blank_values=True)
+                if strict_envelope and "startTime" not in params and "startTime" in next_params:
+                    raise LinkedInAPIError(0, "changelog next link changed request scope")
                 for key, value in params.items():
                     expected = [str(value)]
                     if key in next_params and next_params[key] != expected:
-                        raise LinkedInAPIError(0, "snapshot next link changed request scope")
+                        raise LinkedInAPIError(0, f"{page_context} next link changed request scope")
                     next_params[key] = expected
                 next_url = parsed._replace(query=urlencode(next_params, doseq=True)).geturl()
             url = next_url
@@ -277,32 +285,32 @@ class LinkedInMDPClient:
         if parsed.scheme != "https" or parsed.netloc != self._allowed_host:
             raise LinkedInAPIError(0, "refusing to send LinkedIn credentials to an unexpected host")
 
-    def _next_link(self, payload: dict[str, Any], *, strict: bool = False) -> str | None:
+    def _next_link(self, payload: dict[str, Any], *, strict: bool = False, context: str = "snapshot") -> str | None:
         """Return the single validated next link, or no link at the end."""
         paging = payload.get("paging")
         if not isinstance(paging, dict):
             if strict and "paging" in payload:
-                raise LinkedInAPIError(0, "malformed snapshot paging object")
+                raise LinkedInAPIError(0, f"malformed {context} paging object")
             return None
         links = paging.get("links")
         if not isinstance(links, list):
             if strict and "links" in paging:
-                raise LinkedInAPIError(0, "malformed snapshot paging links")
+                raise LinkedInAPIError(0, f"malformed {context} paging links")
             return None
 
         if strict:
             next_links: list[str] = []
             for link in links:
                 if not isinstance(link, dict):
-                    raise LinkedInAPIError(0, "malformed snapshot paging link")
+                    raise LinkedInAPIError(0, f"malformed {context} paging link")
                 rel = link.get("rel")
                 href = link.get("href")
                 if not isinstance(rel, str) or not isinstance(href, str) or not href:
-                    raise LinkedInAPIError(0, "malformed snapshot paging link")
+                    raise LinkedInAPIError(0, f"malformed {context} paging link")
                 if rel.lower() == "next":
                     next_links.append(href)
             if len(next_links) > 1:
-                raise LinkedInAPIError(0, "ambiguous snapshot next links")
+                raise LinkedInAPIError(0, f"ambiguous {context} next links")
             if next_links:
                 candidate = urljoin(LINKEDIN_BASE_URL, next_links[0])
                 self._assert_linkedin_url(candidate)

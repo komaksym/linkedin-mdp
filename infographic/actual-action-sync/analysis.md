@@ -1,0 +1,1 @@
+Technical system infographic for a small actual-action sync PR. Explain acquisition, positive evidence, duplicate-safe persistence and approval boundaries. No person data or deployed-schedule claim. Defaults resolve structural-breakdown, technical-schematic, 16:9, English, native imagegen. Saved preference is auto with no layout override.

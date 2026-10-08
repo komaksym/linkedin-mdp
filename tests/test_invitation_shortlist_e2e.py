@@ -42,6 +42,17 @@ def test_invitation_shortlist_e2e() -> None:
     assert "test_legacy_baseline_private_cli_happy_case" in collection.stdout
     assert "test_legacy_baseline_malformed_same_name_row_still_collides" in collection.stdout
     assert "test_legacy_baseline_target_collisions_withhold_both" in collection.stdout
+    required_present_employer_regressions = {
+        "test_present_set_charges_each_company_once_and_keeps_flat_audit",
+        "test_present_set_membership_does_not_invent_primary_employer",
+        "test_conflicting_canonical_present_sets_are_not_unioned",
+        "test_present_set_selection_requires_and_consumes_every_company_slot",
+        "test_legacy_employer_rows_reject_completeness_metadata",
+    }
+    missing_regressions = sorted(
+        test_name for test_name in required_present_employer_regressions if test_name not in collection.stdout
+    )
+    assert not missing_regressions, f"missing red-first regression coverage: {missing_regressions}"
 
     body = {
         "schema_version": 1,
@@ -82,6 +93,12 @@ def test_invitation_shortlist_e2e() -> None:
             "private Markdown omitted creation-time provenance",
             "UTC conversion overflow aborted timestamp enrichment",
             "private Markdown omitted the creation-time prospect ID",
+            "escaped surrogate snapshot metadata blocked complete matching raw and exported rows",
+            "explicit concurrent employers could not charge each historical company once",
+            "complete employer sets could not admit qualified-company membership",
+            "conflicting canonical sets lacked an explicit conflict reason",
+            "secondary employer at capacity admitted an invitation",
+            "legacy employer rows ignored incomplete coverage metadata",
         ],
     }
     body["artifact_digest"] = hashlib.sha256(

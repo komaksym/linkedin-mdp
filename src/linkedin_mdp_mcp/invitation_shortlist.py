@@ -68,11 +68,10 @@ class QualifiedCandidate:
 
 @dataclass(frozen=True)
 class CurrentEmployer:
-    """Represent one exact profile's owner-approved latest-known employer."""
+    """Represent the cited companies simultaneously present for one exact profile."""
 
     profile_url: str
-    company_id: str
-    citations: tuple[Citation, ...]
+    assignments: Mapping[str, tuple[Citation, ...]]
 
 
 @dataclass(frozen=True)
@@ -259,26 +258,39 @@ def _current_employers(
             queue.append({**pointer, "reason": "current_employer_assignment_invalid"})
             continue
         assignment = raw_assignment
-        company_id = assignment.get("company_id")
-        if not isinstance(company_id, str) or company_id not in registry:
-            queue.append({**pointer, "reason": "current_employer_unregistered"})
-            continue
         try:
-            citations = _citation_list(
-                assignment.get("citations"), now, max_age=_QUALIFICATION_MAX_AGE, check_source_date=False
-            )
+            if "assignments" in assignment:
+                if "company_id" in assignment or "citations" in assignment:
+                    raise ShortlistInputError("current_employer_assignment_invalid")
+                reasons = assignment.get("unknown_reasons")
+                if assignment.get("coverage") != "complete" or reasons != []:
+                    raise ShortlistInputError("current_employer_coverage_incomplete")
+                rows = _array(assignment["assignments"], "current_employer_assignment_invalid")
+                if not rows:
+                    raise ShortlistInputError("current_employer_assignment_invalid")
+            else:
+                if "coverage" in assignment or "unknown_reasons" in assignment:
+                    raise ShortlistInputError("current_employer_assignment_invalid")
+                rows = [assignment]
+            companies: dict[str, tuple[Citation, ...]] = {}
+            for raw in rows:
+                row = _object(raw, "current_employer_assignment_invalid")
+                company_id = row.get("company_id")
+                if not isinstance(company_id, str) or company_id not in registry:
+                    raise ShortlistInputError("current_employer_unregistered")
+                citations = _citation_list(row.get("citations"), now, max_age=_QUALIFICATION_MAX_AGE, check_source_date=False)
+                companies[company_id] = tuple(dict.fromkeys((*companies.get(company_id, ()), *citations)))
         except ShortlistInputError as exc:
             queue.append({**pointer, "reason": exc.code})
             continue
         existing = assignments.get(profile_url)
-        if existing and existing.company_id != company_id:
+        if existing and existing.assignments.keys() != companies.keys():
             queue.append({**pointer, "reason": "conflicting_current_employer_assignments"})
             assignments.pop(profile_url, None)
             continue
-        if existing is None:
-            assignments[profile_url] = CurrentEmployer(profile_url, company_id, citations)
-        else:
-            assignments[profile_url] = CurrentEmployer(profile_url, company_id, (*existing.citations, *citations))
+        if existing:
+            companies = {key: tuple(dict.fromkeys((*existing.assignments[key], *citations))) for key, citations in companies.items()}
+        assignments[profile_url] = CurrentEmployer(profile_url, companies)
     unresolved = {item["profile_url"] for item in queue if item["profile_url"] is not None}
     for profile_url in unresolved:
         assignments.pop(profile_url, None)
@@ -819,7 +831,7 @@ def _make_markdown(result: Mapping[str, Any]) -> str:
             )
             lines.append(f"- {pointer}: {row['reason']}.")
         lines.append("")
-    lines.extend(["## Audit", "", f"Score version: `{_SCORE_VERSION}`. Current employers use the owner-approved latest-known-present assumption. No invitation was sent.", ""])
+    lines.extend(["## Audit", "", f"Score version: `{_SCORE_VERSION}`. Current employers use the owner-approved all-jobs-present assumption. No invitation was sent.", ""])
     return "\n".join(lines)
 
 
@@ -1000,7 +1012,7 @@ def build_invitation_shortlist(
             withheld_counts["identity_conflict"] += 1
             continue
         employer = employers.get(url)
-        if employer is None or employer.company_id != candidate_row.company_id:
+        if employer is None or candidate_row.company_id not in employer.assignments:
             withheld_counts["current_employer_conflict"] += 1
             continue
         prospect_ids = {
@@ -1066,16 +1078,17 @@ def build_invitation_shortlist(
                 "reason": "current_employer_missing",
             } for evidence in evidence_rows)
             continue
-        company_counts[employer.company_id] += 1
-        cap_evidence_by_company[employer.company_id].extend({
-            "evidence_id": evidence.evidence_id,
-            "profile_url": profile_url,
-            "source_ref": evidence.source_ref,
-            "event_date": evidence.event_date.isoformat() if evidence.event_date else None,
-            "source_time": evidence.source_time,
-            "time_precision": evidence.time_precision,
-            "timezone": evidence.timezone,
-        } for evidence in evidence_rows)
+        for company_id in employer.assignments:
+            company_counts[company_id] += 1
+            cap_evidence_by_company[company_id].extend({
+                "evidence_id": evidence.evidence_id,
+                "profile_url": profile_url,
+                "source_ref": evidence.source_ref,
+                "event_date": evidence.event_date.isoformat() if evidence.event_date else None,
+                "source_time": evidence.source_time,
+                "time_precision": evidence.time_precision,
+                "timezone": evidence.timezone,
+            } for evidence in evidence_rows)
     history_queue.extend(employer_queue)
     research_queue = history_queue
     unique_queue: list[dict[str, Any]] = []
@@ -1096,15 +1109,17 @@ def build_invitation_shortlist(
         eligible.sort(key=lambda item: (-(sum(_factor_score(item.factors[name], name) for name in item.factors) if item.factors else -math.inf), item.profile_url))
         selected = []
         for candidate_row in eligible:
-            if slots[candidate_row.company_id] <= 0:
+            if any(slots[company_id] <= 0 for company_id in employers[candidate_row.profile_url].assignments):
                 continue
             selected.append(candidate_row)
-            slots[candidate_row.company_id] -= 1
+            for company_id in employers[candidate_row.profile_url].assignments:
+                slots[company_id] -= 1
             if len(selected) == 25:
                 break
         remaining_slots = {company_id: max(0, 3 - company_counts[company_id]) for company_id in registry}
         for candidate_row in selected:
-            remaining_slots[candidate_row.company_id] -= 1
+            for company_id in employers[candidate_row.profile_url].assignments:
+                remaining_slots[company_id] -= 1
         slots = remaining_slots
     research_queue.sort(key=lambda item: (item.get("evidence_id", ""), item["reason"]))
     rows_out = [_candidate_json(item) for item in selected]
@@ -1115,6 +1130,7 @@ def build_invitation_shortlist(
         usage: dict[str, Any] = {
             "recorded": company_counts[company_id] if status == "ready" else None,
             "remaining_slots": max(0, 3 - company_counts[company_id]) if status == "ready" else None,
+            "remaining_slots_after_selection": slots[company_id] if status == "ready" else None,
             "evidence": cap_evidence_by_company[company_id],
         }
         company_usage[company_id] = usage
@@ -1123,7 +1139,7 @@ def build_invitation_shortlist(
         "status": status,
         "cap_scope": cap_scope,
         "score_version": _SCORE_VERSION,
-        "evidence_validation": "current employer is an owner-approved latest-known-present assumption; citations are retained but external page contents are not fetched",
+        "evidence_validation": "current employers use the owner-approved all-jobs-present assumption; citations are retained but external page contents are not fetched",
         "source_freshness": {
             "acquisition": "fresh",
             "collected_at": collected_at.isoformat(),
@@ -1143,9 +1159,14 @@ def build_invitation_shortlist(
         "current_employer_assignments": [
             {
                 "profile_url": item.profile_url,
-                "company_id": item.company_id,
-                "citations": [_citation_json(citation) for citation in item.citations],
+                "company_id": company_id,
+                "citations": [_citation_json(citation) for citation in citations],
             }
+            for item in sorted(employers.values(), key=lambda item: item.profile_url)
+            for company_id, citations in sorted(item.assignments.items())
+        ],
+        "current_employer_sets": [
+            {"profile_url": item.profile_url, "company_ids": sorted(item.assignments), "coverage": "complete"}
             for item in sorted(employers.values(), key=lambda item: item.profile_url)
         ],
         "company_usage": company_usage,

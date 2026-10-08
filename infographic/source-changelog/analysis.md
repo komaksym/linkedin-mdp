@@ -1,0 +1,1 @@
+Technical/system infographic. Audience owner and reviewer. Learning objective: acquisition metadata describes when source data was collected, not when the provider updated it. Technical default structural-breakdown, technical-schematic, landscape16:9 English, native imagegen. Neutral opaque canvas. No person data or deployment claim.

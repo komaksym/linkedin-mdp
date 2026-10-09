@@ -209,6 +209,7 @@ class LinkedInMDPClient:
             page_context = "changelog" if strict_envelope else "snapshot"
             next_url = self._next_link(payload, strict=strict_pages, context=page_context)
             if next_url is None:
+                self._assert_paging_complete(payload, context=page_context)
                 return PageResult(elements=elements, page_count=pages, truncated=False)
             if strict_pages:
                 parsed = urlparse(next_url)
@@ -339,3 +340,22 @@ class LinkedInMDPClient:
             count = payload.get("page_count")
             if isinstance(count, bool) or not isinstance(count, int) or count < 0:
                 raise LinkedInAPIError(0, "malformed snapshot page count")
+
+    @staticmethod
+    def _assert_paging_complete(payload: dict[str, Any], *, context: str) -> None:
+        """Fail closed when paging counts report more rows than this page holds."""
+        paging = payload.get("paging")
+        if not isinstance(paging, dict):
+            return
+        total = paging.get("total")
+        start = paging.get("start")
+        count = paging.get("count")
+        for value in (total, start, count):
+            if isinstance(value, bool) or not isinstance(value, int):
+                return
+        if total > start + count:
+            raise LinkedInAPIError(
+                0,
+                f"{context} paging is incomplete: total {total} exceeds "
+                f"start {start} plus count {count} but no next link exists",
+            )

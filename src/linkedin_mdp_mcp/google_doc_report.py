@@ -33,9 +33,9 @@ class GoogleDocConfig:
     document_id: str
 
     @classmethod
-    def from_env(cls) -> "GoogleDocConfig":
+    def from_env(cls, *, document_id_env: str = "GOOGLE_REPORT_DOCUMENT_ID") -> "GoogleDocConfig":
         """Load required OAuth values without including them in error messages."""
-        names = ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REFRESH_TOKEN", "GOOGLE_REPORT_DOCUMENT_ID")
+        names = ("GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REFRESH_TOKEN", document_id_env)
         values = [os.getenv(name) for name in names]
         if any(value is None or not value.strip() for value in values):
             raise GoogleReportError("configuration unavailable")

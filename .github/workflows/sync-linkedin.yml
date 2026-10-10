@@ -1,0 +1,29 @@
+name: Nightly LinkedIn connections sync
+
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync-connections:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.ORION_TOKEN }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://mvgzdcqhdruhjoexbdqp.supabase.co' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: uv sync --extra dev
+      - name: Run sync tests
+        run: uv run pytest tests/test_sync_linkedin_connections.py -q
+      - name: Sync LinkedIn connections
+        run: uv run python scripts/sync_linkedin_connections.py

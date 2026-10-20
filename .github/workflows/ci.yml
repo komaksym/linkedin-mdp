@@ -32,7 +32,7 @@ jobs:
       - name: Lint client
         run: uvx ruff check src/linkedin_mdp_mcp/client.py
       - name: Typecheck client
-        run: uvx mypy src/linkedin_mdp_mcp/client.py
+        run: uvx mypy --python-executable .venv/bin/python src/linkedin_mdp_mcp/client.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

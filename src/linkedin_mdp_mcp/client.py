@@ -60,7 +60,7 @@ class LinkedInMDPClient:
         self._allowed_host = urlparse(LINKEDIN_BASE_URL).netloc
 
     @classmethod
-    def from_env(cls) -> "LinkedInMDPClient":
+    def from_env(cls) -> LinkedInMDPClient:
         load_dotenv(find_dotenv(usecwd=True), override=False)
         token = os.getenv("LINKEDIN_ACCESS_TOKEN") or os.getenv("LINKEDIN_TOKEN")
         if not token:

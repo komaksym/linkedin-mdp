@@ -66,10 +66,14 @@ Using `uv`:
 
 ```bash
 uv sync --extra dev
-export LINKEDIN_ACCESS_TOKEN='...'
-export LINKEDIN_API_VERSION='202312'
+cat > .env <<EOF
+LINKEDIN_ACCESS_TOKEN=your-token
+LINKEDIN_API_VERSION=202312
+EOF
 uv run linkedin-mdp-mcp
 ```
+
+The commands automatically load the nearest `.env` from the current project. `.env` is git-ignored, and existing process environment variables override values from the file.
 
 MCP endpoint: `http://127.0.0.1:8000/mcp`
 
@@ -87,10 +91,10 @@ For a personal/private first deployment, keep the service private and use **Secu
 
 ## Authentication
 
-The server accepts the LinkedIn token only from an environment variable:
+The server reads the LinkedIn token from the process environment and automatically loads the ignored project `.env` first:
 
 ```bash
-LINKEDIN_ACCESS_TOKEN=...
+uv run linkedin-mdp-mcp
 ```
 
 `LINKEDIN_TOKEN` is also accepted as a compatibility alias. Never commit the token or put it into MCP tool arguments.

@@ -60,7 +60,7 @@ class LinkedInMDPClient:
         self._allowed_host = urlparse(LINKEDIN_BASE_URL).netloc
 
     @classmethod
-    def from_env(cls) -> "LinkedInMDPClient":
+    def from_env(cls) -> LinkedInMDPClient:
         load_dotenv(find_dotenv(usecwd=True), override=False)
         token = os.getenv("LINKEDIN_ACCESS_TOKEN") or os.getenv("LINKEDIN_TOKEN")
         if not token:
@@ -352,9 +352,12 @@ class LinkedInMDPClient:
         total = paging.get("total")
         start = paging.get("start")
         count = paging.get("count")
-        for value in (total, start, count):
-            if isinstance(value, bool) or not isinstance(value, int):
-                return
+        if isinstance(total, bool) or not isinstance(total, int):
+            return
+        if isinstance(start, bool) or not isinstance(start, int):
+            return
+        if isinstance(count, bool) or not isinstance(count, int):
+            return
         if total > start + count:
             raise LinkedInAPIError(
                 0,

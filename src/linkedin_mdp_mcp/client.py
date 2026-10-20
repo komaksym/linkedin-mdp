@@ -352,9 +352,12 @@ class LinkedInMDPClient:
         total = paging.get("total")
         start = paging.get("start")
         count = paging.get("count")
-        for value in (total, start, count):
-            if isinstance(value, bool) or not isinstance(value, int):
-                return
+        if isinstance(total, bool) or not isinstance(total, int):
+            return
+        if isinstance(start, bool) or not isinstance(start, int):
+            return
+        if isinstance(count, bool) or not isinstance(count, int):
+            return
         if total > start + count:
             raise LinkedInAPIError(
                 0,

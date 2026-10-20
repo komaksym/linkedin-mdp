@@ -112,10 +112,13 @@ The smoke test calls all five LinkedIn capabilities but prints only counts/metad
 ## Tests
 
 ```bash
-uv run pytest -q
+uv sync --extra dev
+uv run python -m pytest -q
 ```
 
 The tests verify endpoint/finder shapes, pagination, read-only MCP annotations, the exact five-tool surface, and a guard that prevents a malicious pagination link from forwarding the bearer token to another host.
+
+Stable CI runs on every pull request and main push without live credentials. It runs the full suite, synthetic HTTP report flow, client lint and types, and package build. Its stable-ci-evidence artifact contains test results, synthetic evidence, and built packages. Live MCP verification remains a separate read-only check.
 
 ## Important semantics
 

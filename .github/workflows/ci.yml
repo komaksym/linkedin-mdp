@@ -24,7 +24,7 @@ jobs:
       - name: Install test runtime
         run: uv sync --extra dev
       - name: Run full test suite
-        run: .venv/bin/python -m pytest -q
+        run: .venv/bin/python -m pytest -q --junitxml=ci-tests.xml
       - name: Verify report HTTP boundaries with synthetic data
         run: PYTHONPATH=src:. .venv/bin/python tests/e2e_doc_report.py --evidence report-evidence.json
       - name: Build wheel
@@ -33,3 +33,12 @@ jobs:
         run: uvx ruff check src/linkedin_mdp_mcp/client.py
       - name: Typecheck client
         run: uvx mypy src/linkedin_mdp_mcp/client.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable-ci-evidence
+          path: |
+            ci-tests.xml
+            report-evidence.json
+            dist/
+          if-no-files-found: error

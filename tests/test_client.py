@@ -1,9 +1,67 @@
 from __future__ import annotations
 
 import httpx
+import os
 import pytest
 
 from linkedin_mdp_mcp.client import LinkedInAPIError, LinkedInMDPClient
+
+
+@pytest.mark.asyncio
+async def test_from_env_loads_dotenv_from_current_project(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LINKEDIN_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("LINKEDIN_TOKEN", raising=False)
+    monkeypatch.delenv("LINKEDIN_API_VERSION", raising=False)
+    (tmp_path / ".env").write_text(
+        "LINKEDIN_ACCESS_TOKEN=file-token\nLINKEDIN_API_VERSION=202401\n"
+    )
+
+    client = LinkedInMDPClient.from_env()
+    try:
+        assert client._token == "file-token"
+        assert client.api_version == "202401"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_from_env_process_environment_overrides_dotenv(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LINKEDIN_ACCESS_TOKEN", "process-token")
+    monkeypatch.setenv("LINKEDIN_API_VERSION", "202402")
+    (tmp_path / ".env").write_text(
+        "LINKEDIN_ACCESS_TOKEN=file-token\nLINKEDIN_API_VERSION=202401\n"
+    )
+
+    client = LinkedInMDPClient.from_env()
+    try:
+        assert client._token == "process-token"
+        assert client.api_version == "202402"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_from_env_supports_quoted_hash_export_syntax(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LINKEDIN_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("LINKEDIN_TOKEN", raising=False)
+    (tmp_path / ".env").write_text(
+        'LINKEDIN_ACCESS_TOKEN=file-token\n'
+        'QUOTED="hello world"\n'
+        'HASHED=value # trailing comment\n'
+        'export EXPORTED=exported-value\n'
+    )
+
+    client = LinkedInMDPClient.from_env()
+    try:
+        assert client._token == "file-token"
+        assert os.getenv("QUOTED") == "hello world"
+        assert os.getenv("HASHED") == "value"
+        assert os.getenv("EXPORTED") == "exported-value"
+    finally:
+        await client.aclose()
 
 
 @pytest.mark.asyncio

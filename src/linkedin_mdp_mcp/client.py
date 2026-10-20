@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import httpx
+from dotenv import find_dotenv, load_dotenv
 
 LINKEDIN_BASE_URL = "https://api.linkedin.com"
 DEFAULT_API_VERSION = "202312"
@@ -60,6 +61,7 @@ class LinkedInMDPClient:
 
     @classmethod
     def from_env(cls) -> "LinkedInMDPClient":
+        load_dotenv(find_dotenv(usecwd=True), override=False)
         token = os.getenv("LINKEDIN_ACCESS_TOKEN") or os.getenv("LINKEDIN_TOKEN")
         if not token:
             raise RuntimeError(

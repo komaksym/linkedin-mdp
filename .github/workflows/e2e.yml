@@ -82,3 +82,21 @@ jobs:
       - name: Server log on failure
         if: failure()
         run: cat server.log || true
+
+      - name: Stop task-owned MCP server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f server.pid ]]; then
+            server_pid="$(cat server.pid)"
+            kill "$server_pid" 2>/dev/null || true
+            for _ in {1..50}; do
+              if ! kill -0 "$server_pid" 2>/dev/null; then
+                break
+              fi
+              sleep 0.1
+            done
+            if kill -0 "$server_pid" 2>/dev/null; then
+              kill -KILL "$server_pid" 2>/dev/null || true
+            fi
+          fi

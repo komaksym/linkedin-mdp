@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -137,6 +138,7 @@ class Services:
     revisions: dict[str, int] = field(default_factory=lambda: {FIRST_ID: 1, FOLLOW_ID: 1})
     attempts: dict[str, int] = field(default_factory=lambda: {FIRST_ID: 0, FOLLOW_ID: 0})
     writes: dict[str, int] = field(default_factory=lambda: {FIRST_ID: 0, FOLLOW_ID: 0})
+    document_requests: dict[str, int] = field(default_factory=lambda: {FIRST_ID: 0, FOLLOW_ID: 0})
     requests: int = 0
 
     def handle(self, req: httpx.Request) -> httpx.Response:
@@ -144,11 +146,13 @@ class Services:
         self.requests += 1
         host = req.url.host
         if host == "oauth2.googleapis.com":
-            if self.scenario == "oauth":
-                return httpx.Response(400, json={"error": "private-refresh-token"})
+            if self.scenario in {"oauth", "unavailable"}:
+                return httpx.Response(503, json={"error": "private-refresh-token"})
             return httpx.Response(200, json={"access_token": "private-access-token"})
         parts = [part for part in req.url.path.split("/") if part]
         document = (parts[-2] if parts[-1] == "permissions" else parts[-1]).split(":")[0]
+        if document in self.document_requests:
+            self.document_requests[document] += 1
         if host == "www.googleapis.com":
             return self.drive(req, document)
         if host == "docs.googleapis.com":
@@ -216,24 +220,49 @@ def write_private_json(directory: str, value: Any, *, mode: int = 0o600, name: s
     return path
 
 
+def verification(
+    actions_path: Path,
+    *,
+    first_dm: str = "PASS",
+    reply: str = "PASS",
+    follow_up: str = "PASS",
+) -> dict[str, Any]:
+    """Build the version-1 verifier artifact bound to the exact candidate bytes."""
+    return {
+        "version": 1,
+        "candidate_sha256": hashlib.sha256(actions_path.read_bytes()).hexdigest(),
+        "queues": {
+            "first_dm": {"verdict": first_dm},
+            "reply": {"verdict": reply},
+            "follow_up": {"verdict": follow_up},
+        },
+    }
+
+
 async def publish(
     service: Services,
     actions_path: Path,
     retained_path: Path,
+    verification_path: Path | None = None,
     argv: list[str] | None = None,
 ) -> tuple[int, str, str]:
     """Run the real publisher CLI with only the HTTP transport replaced."""
+    if verification_path is None and argv is None:
+        verification_path = write_private_json(
+            str(actions_path.parent),
+            verification(actions_path),
+            name="verification.json",
+        )
     async with httpx.AsyncClient(transport=httpx.MockTransport(service.handle), follow_redirects=False) as http:
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            code = await cli.run(
-                argv or [
-                    "--actions", str(actions_path),
-                    "--retained-evidence", str(retained_path),
-                    "--now", NOW,
-                ],
-                http=http,
-            )
+            command = argv or [
+                "--actions", str(actions_path),
+                "--retained-evidence", str(retained_path),
+                "--verification", str(verification_path),
+                "--now", NOW,
+            ]
+            code = await cli.run(command, http=http)
         return code, stdout.getvalue(), stderr.getvalue()
 
 
@@ -244,6 +273,35 @@ async def run_scenarios() -> dict[str, str]:
         action_value = actions()
         action_path = write_private_json(tmp, action_value, name="actions.json")
         retained_path = write_private_json(tmp, retained(action_value), name="retained.json")
+        base_verification_path = write_private_json(
+            tmp,
+            verification(action_path),
+            name="base-verification.json",
+        )
+
+        service = Services()
+        code, out, err = await publish(
+            service,
+            action_path,
+            retained_path,
+            argv=[
+                "--actions", str(action_path),
+                "--retained-evidence", str(retained_path),
+                "--now", NOW,
+            ],
+        )
+        assert code == 1 and out == "" and err == "private DM docs: input invalid\n", (code, out, err)
+        assert service.requests == 0 and service.writes == {FIRST_ID: 0, FOLLOW_ID: 0}
+        results["verification_required"] = "passed"
+
+        service = Services()
+        stdout, stderr = io.StringIO(), io.StringIO()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(service.handle), follow_redirects=False) as http:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                code = await cli.run(action_path, retained_path, base_verification_path, http=http)
+        assert code == 0 and stdout.getvalue() == "private DM docs: published\n" and stderr.getvalue() == ""
+        assert service.writes == {FIRST_ID: 1, FOLLOW_ID: 1}
+        results["path_api_publishes"] = "passed"
 
         service = Services()
         code, out, err = await publish(service, action_path, retained_path)
@@ -272,8 +330,80 @@ async def run_scenarios() -> dict[str, str]:
         assert "Action: Owner writes follow-up" in follow and "Read state: unknown" in follow, follow
         assert "Synthetic previous outbound" not in first and "Synthetic conditional researched opener 1" not in follow, (first, follow)
         assert "Saved researched draft:" not in follow, follow
+        baseline_service = service
         results["both_docs_complete"] = "passed"
 
+        for denied in ("FAIL", "WITHHOLD"):
+            service = Services()
+            first_pass_verification = write_private_json(
+                tmp,
+                verification(action_path, follow_up=denied),
+                name=f"first-pass-follow-{denied.lower()}-verification.json",
+            )
+            with patch.dict(os.environ, {**ENV, "GOOGLE_FOLLOW_UP_REPORT_DOCUMENT_ID": ""}):
+                code, out, err = await publish(service, action_path, retained_path, first_pass_verification)
+            assert code == 0 and out == "private DM docs: published\n" and err == "", (denied, code, out, err)
+            assert service.writes == {FIRST_ID: 1, FOLLOW_ID: 0}, (denied, service.writes)
+            assert service.document_requests[FIRST_ID] > 0 and service.document_requests[FOLLOW_ID] == 0
+            assert service.texts[FOLLOW_ID] == FOLLOW_TEXT
+        results["first_dm_only_publish"] = "passed"
+
+        for denied in ("FAIL", "WITHHOLD"):
+            service = Services()
+            follow_pass_verification = write_private_json(
+                tmp,
+                verification(action_path, first_dm=denied),
+                name=f"follow-pass-first-{denied.lower()}-verification.json",
+            )
+            with patch.dict(os.environ, {**ENV, "GOOGLE_FIRST_DM_REPORT_DOCUMENT_ID": ""}):
+                code, out, err = await publish(service, action_path, retained_path, follow_pass_verification)
+            assert code == 0 and out == "private DM docs: published\n" and err == "", (denied, code, out, err)
+            assert service.writes == {FIRST_ID: 0, FOLLOW_ID: 1}, (denied, service.writes)
+            assert service.document_requests[FIRST_ID] == 0 and service.document_requests[FOLLOW_ID] > 0
+            assert service.texts[FIRST_ID] == FIRST_TEXT
+        results["follow_up_only_publish"] = "passed"
+
+        service = Services()
+        reply_withheld_verification = write_private_json(
+            tmp,
+            verification(action_path, reply="WITHHOLD"),
+            name="reply-withheld-verification.json",
+        )
+        code, out, err = await publish(service, action_path, retained_path, reply_withheld_verification)
+        assert code == 0 and out == "private DM docs: published\n" and err == "", (code, out, err)
+        assert service.writes == {FIRST_ID: 1, FOLLOW_ID: 1}, service.writes
+        results["reply_verdict_does_not_add_document"] = "passed"
+
+        for first_verdict, follow_verdict in (
+            ("FAIL", "FAIL"),
+            ("WITHHOLD", "WITHHOLD"),
+            ("FAIL", "WITHHOLD"),
+            ("WITHHOLD", "FAIL"),
+        ):
+            service = Services()
+            no_eligible_verification = write_private_json(
+                tmp,
+                verification(
+                    action_path,
+                    first_dm=first_verdict,
+                    reply="WITHHOLD",
+                    follow_up=follow_verdict,
+                ),
+                name=f"no-eligible-{first_verdict.lower()}-{follow_verdict.lower()}-verification.json",
+            )
+            with patch.dict(os.environ, {name: "" for name in ENV}):
+                code, out, err = await publish(service, action_path, retained_path, no_eligible_verification)
+            assert code == 0 and out == "private DM docs: no eligible destinations\n" and err == "", (
+                first_verdict,
+                follow_verdict,
+                code,
+                out,
+                err,
+            )
+            assert service.requests == 0 and service.writes == {FIRST_ID: 0, FOLLOW_ID: 0}
+        results["no_eligible_destination_noop"] = "passed"
+
+        service = baseline_service
         before = (first, follow)
         code, out, err = await publish(service, action_path, retained_path)
         assert code == 0 and err == "" and (service.texts[FIRST_ID], service.texts[FOLLOW_ID]) == before, (code, err)
@@ -322,6 +452,107 @@ async def run_scenarios() -> dict[str, str]:
         results["retained_evidence_required"] = "passed"
 
         service = Services()
+        stdout, stderr = io.StringIO(), io.StringIO()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(service.handle), follow_redirects=False) as http:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                code = await cli.run(action_path, retained_path, http=http)
+        assert code == 1 and stdout.getvalue() == "" and stderr.getvalue() == "private DM docs: input invalid\n"
+        assert service.requests == 0
+        results["path_api_requires_verification"] = "passed"
+
+        malformed_verification = write_private_json(tmp, "{", name="malformed-verification.json")
+        invalid_verifications = {
+            "malformed-verification.json": malformed_verification,
+            "missing-digest-verification.json": write_private_json(
+                tmp,
+                {key: value for key, value in verification(action_path).items() if key != "candidate_sha256"},
+                name="missing-digest-verification.json",
+            ),
+            "missing-reply-verification.json": write_private_json(
+                tmp,
+                {
+                    **verification(action_path),
+                    "queues": {
+                        "first_dm": {"verdict": "PASS"},
+                        "follow_up": {"verdict": "PASS"},
+                    },
+                },
+                name="missing-reply-verification.json",
+            ),
+            "version-two-verification.json": write_private_json(
+                tmp,
+                {**verification(action_path), "version": 2},
+                name="version-two-verification.json",
+            ),
+            "invalid-verdict-verification.json": write_private_json(
+                tmp,
+                verification(action_path, first_dm="OK"),
+                name="invalid-verdict-verification.json",
+            ),
+            "extra-field-verification.json": write_private_json(
+                tmp,
+                {**verification(action_path), "trusted": True},
+                name="extra-field-verification.json",
+            ),
+        }
+        for name, path in invalid_verifications.items():
+            service = Services()
+            code, out, err = await publish(service, action_path, retained_path, path)
+            assert code == 1 and out == "" and err == "private DM docs: input invalid\n", (name, code, out, err)
+            assert service.requests == 0
+        results["malformed_verification_refused"] = "passed"
+
+        service = Services()
+        changed_bytes_path = Path(tmp) / "changed-bytes-actions.json"
+        changed_bytes_path.write_text(json.dumps(action_value, indent=2), encoding="utf-8")
+        changed_bytes_path.chmod(0o600)
+        assert json.loads(changed_bytes_path.read_text(encoding="utf-8")) == action_value
+        code, out, err = await publish(service, changed_bytes_path, retained_path, base_verification_path)
+        assert code == 1 and out == "" and err == "private DM docs: input invalid\n", (code, out, err)
+        assert service.requests == 0
+        results["candidate_byte_mismatch_refused"] = "passed"
+
+        service = Services()
+        permissive_verification = write_private_json(
+            tmp,
+            verification(action_path),
+            mode=0o644,
+            name="permissive-verification.json",
+        )
+        code, out, err = await publish(service, action_path, retained_path, permissive_verification)
+        assert code == 1 and out == "" and err == "private DM docs: input invalid\n", (code, out, err)
+        code, out, err = await publish(service, action_path, retained_path, Path(tmp) / "absent-verification.json")
+        assert code == 1 and out == "" and err == "private DM docs: input invalid\n", (code, out, err)
+        assert service.requests == 0
+        results["verification_private_input_guard"] = "passed"
+
+        service = Services("unavailable")
+        code, out, err = await publish(service, action_path, retained_path)
+        assert code == 2 and out == "" and err == "private DM docs: Google publication unavailable\n"
+        assert service.requests > 0 and service.writes == {FIRST_ID: 0, FOLLOW_ID: 0}
+        results["google_unavailable_fails_closed"] = "passed"
+
+        service = Services()
+
+        class CloseFailingClient(httpx.AsyncClient):
+            """Run the real CLI with one owned client whose close must fail visibly."""
+
+            def __init__(self, **kwargs: Any) -> None:
+                super().__init__(transport=httpx.MockTransport(service.handle), follow_redirects=False)
+
+            async def aclose(self) -> None:
+                await super().aclose()
+                raise RuntimeError("synthetic close failure")
+
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(cli.httpx, "AsyncClient", CloseFailingClient):
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                code = await cli.run(action_path, retained_path, base_verification_path)
+        assert code == 2 and stdout.getvalue() == "" and stderr.getvalue() == "private DM docs: cleanup unavailable\n"
+        assert service.writes == {FIRST_ID: 1, FOLLOW_ID: 1}
+        results["cleanup_failure_reported"] = "passed"
+
+        service = Services()
         lossy_retained = retained(action_value)
         lossy_retained["rows"] = []
         lossy_path = write_private_json(tmp, lossy_retained, name="lossy-retained.json")
@@ -347,6 +578,7 @@ async def run_scenarios() -> dict[str, str]:
                     code = await cli.run([
                         "--actions", str(action_path),
                         "--retained-evidence", str(retained_path),
+                        "--verification", str(base_verification_path),
                         "--now", NOW,
                     ], http=http)
         assert code == 2 and stdout.getvalue() == "" and stderr.getvalue() == "private DM docs: configuration unavailable\n", (code, stderr.getvalue())
@@ -361,6 +593,7 @@ async def run_scenarios() -> dict[str, str]:
                     code = await cli.run([
                         "--actions", str(action_path),
                         "--retained-evidence", str(retained_path),
+                        "--verification", str(base_verification_path),
                         "--now", NOW,
                     ], http=http)
         assert code == 2 and stdout.getvalue() == "" and stderr.getvalue() == "private DM docs: configuration unavailable\n", (code, stderr.getvalue())
@@ -386,7 +619,7 @@ async def run_scenarios() -> dict[str, str]:
         permissive = write_private_json(tmp, actions(), mode=0o644, name="permissive.json")
         code, out, err = await publish(service, permissive, retained_path)
         assert code == 1 and err == "private DM docs: input invalid\n", (code, err)
-        code, out, err = await publish(service, Path(tmp) / "absent.json", retained_path)
+        code, out, err = await publish(service, Path(tmp) / "absent.json", retained_path, base_verification_path)
         assert code == 1 and err == "private DM docs: input invalid\n", (code, err)
         permissive_retained = write_private_json(tmp, retained(action_value), mode=0o644, name="permissive-retained.json")
         code, out, err = await publish(service, action_path, permissive_retained)
@@ -400,6 +633,7 @@ async def run_scenarios() -> dict[str, str]:
             argv=[
                 "--actions", str(action_path),
                 "--retained-evidence", str(retained_path),
+                "--verification", str(base_verification_path),
                 "--now", "2026-10-05T08:00:00",
             ],
         )

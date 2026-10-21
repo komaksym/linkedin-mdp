@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
+from enum import Enum
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -21,6 +22,33 @@ _PLANNER_KEYS = {"reply", "follow_up", "first_dm", "withheld", "coverage"}
 
 class DmDocReportError(ValueError):
     """Represent invalid private DM publication input without exposing its contents."""
+
+
+class QueueVerdict(str, Enum):
+    """Represent every verifier outcome for one private publication queue."""
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    WITHHOLD = "WITHHOLD"
+
+
+@dataclass(frozen=True)
+class PublicationVerdicts:
+    """Hold the three required queue verdicts from a version-1 verifier artifact."""
+
+    first_dm: QueueVerdict
+    reply: QueueVerdict
+    follow_up: QueueVerdict
+
+    @property
+    def publishes_first_dm(self) -> bool:
+        """Return whether the first-DM destination is authorized for publication."""
+        return self.first_dm is QueueVerdict.PASS
+
+    @property
+    def publishes_follow_up(self) -> bool:
+        """Return whether the follow-up destination is authorized for publication."""
+        return self.follow_up is QueueVerdict.PASS
 
 
 @dataclass(frozen=True)

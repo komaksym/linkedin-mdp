@@ -12,7 +12,7 @@ Run the CLI with `--source`, `--policy`, `--research`, `--output-dir`, and `--ac
 
 ## Publish the two DM Google Docs
 
-`scripts/publish_private_dm_docs.py` consumes an existing `private-dm-actions.json`, one retained publication verification artifact, and a private `verification.json`. Pass `--verification` in argv mode. The Path API accepts actions, retained evidence, and verification paths in that order. The publisher publishes the `first_dm` rows to the first-time DM Doc and the `follow_up` rows to the follow-up Doc. It does not publish `reply` rows.
+`scripts/publish_private_dm_docs.py` consumes an existing `private-dm-actions.json`, one private retained-evidence file (`--retained-evidence`), and a private `verification.json` (`--verification`). The Path API accepts actions, retained evidence, and verification paths in that order. The publisher publishes the `first_dm` rows to the first-time DM Doc and the `follow_up` rows to the follow-up Doc. It does not publish `reply` rows.
 
 `verification.json` uses schema version `1`. Its exact top-level fields are `version`, `candidate_sha256`, and `queues`. It must contain `queues.first_dm.verdict`, `queues.reply.verdict`, and `queues.follow_up.verdict`, and each queue row contains only `verdict`. Each verdict must be `PASS`, `FAIL`, or `WITHHOLD`. Keep the file private with mode `0600`, like the actions and retained-evidence files. Missing, malformed, stale, or permissive verification returns `private DM docs: input invalid` before Google configuration or HTTP work.
 
@@ -20,7 +20,7 @@ Run the CLI with `--source`, `--policy`, `--research`, `--output-dir`, and `--ac
 
 The publisher gates each owned Doc by its queue verdict. It prepares and publishes the first-time DM Doc only when `first_dm.verdict` is exactly `PASS`. It prepares and publishes the follow-up Doc only when `follow_up.verdict` is exactly `PASS`. `FAIL` and `WITHHOLD` leave that Doc unchanged. The `reply` verdict is validated, but this publisher has no reply Doc and never publishes reply rows.
 
-All current planner, retained-evidence, managed-marker, destination, and private-input validators still run before a verdict can select a destination. A malformed artifact or retained evidence is therefore rejected even when one queue is denied. If neither owned queue is `PASS`, the command exits `0`, prints `private DM docs: no eligible destinations`, and reads no Google configuration or makes no HTTP request.
+Private-input, planner, retained-evidence, and body-marker validation runs before verdicts select eligible destinations. Configuration and Google destination checks run only for eligible destinations. A malformed artifact or retained evidence is rejected even when one queue is denied. If neither owned queue is `PASS`, the command exits `0` and prints `private DM docs: no eligible destinations`. It reads no Google configuration and makes no HTTP request.
 
 Set only the environment values needed by an eligible destination:
 
@@ -32,7 +32,7 @@ Set only the environment values needed by an eligible destination:
 
 The two Doc IDs must differ when both owned queue verdicts are `PASS`. Each target Doc must be owner-only and restricted. The Docs use the same `[BEGIN AUTOMATED REPORT]` and `[END AUTOMATED REPORT]` managed region as the connections report. The publisher preserves text outside those markers and reuses the shared privacy, revision, and conflict checks. When both owned queues pass, it preflights both Docs before the first mutation. When one owned queue passes, it requires and touches only that Doc.
 
-The retained evidence artifact must be a private verification record whose `publication` counts match the current planner artifact. `cleared_first_dms` equals the planner `first_dm` length, `conditional_researched_drafts` equals its `rows` length, and `strict_planner_withheld_rows` equals the planner `withheld` length. Each retained row must carry the exact conditional status. A mismatch refuses publication.
+The retained evidence artifact must be a private verification record whose `publication` counts match the current planner artifact. `cleared_first_dms` equals the planner `first_dm` length, `conditional_researched_drafts` equals the retained-evidence `rows` length, and `strict_planner_withheld_rows` equals the planner `withheld` length. Each retained row must carry the exact conditional status. A mismatch refuses publication.
 
 The first-time DM Doc can include a saved researched draft from the planner. The draft is still conditional input for owner review. The follow-up Doc is a manual reminder. It can include the previously verified outbound message, timestamp, elapsed time, and evidence references. The report never generates new follow-up copy.
 
